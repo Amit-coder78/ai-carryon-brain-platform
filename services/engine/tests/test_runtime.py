@@ -125,3 +125,26 @@ def test_unknown_brain_type_fails_only_that_brain():
     res = run([unknown, rb(Fixed({"a": 1}))], CANDS)
     assert res.source == "partial"
     assert any("unsupported_brain_type" in (b.error or "") for b in res.brains)
+
+
+def test_brain_with_no_spread_abstains_instead_of_ranking_alphabetically():
+    flat = Fixed({"a": 0.5, "b": 0.5, "c": 0.5})
+    res = run([rb(flat)], CANDS)
+    assert res.source == "brains"
+    assert all(r.aggregate_score == 0.0 and r.reason_codes == ["unscored"] for r in res.ranked)
+    assert [r.candidate_id for r in res.ranked] == ["a", "b", "c"]          # caller's order, not a vote
+
+
+def test_flat_brain_adds_no_noise_to_an_informative_brain():
+    informative = Fixed({"a": 0.1, "b": 0.9, "c": 0.5})
+    flat = Fixed({"a": 0.2, "b": 0.2, "c": 0.2})
+    alone = run([rb(informative)], CANDS)
+    both = run([rb(informative), rb(flat)], CANDS)
+    assert [r.candidate_id for r in both.ranked] == [r.candidate_id for r in alone.ranked] == ["b", "c", "a"]
+    assert [r.aggregate_score for r in both.ranked] == [r.aggregate_score for r in alone.ranked]
+
+
+def test_ties_inside_an_informative_brain_share_a_rank():
+    res = run([rb(Fixed({"a": 0.9, "b": 0.4, "c": 0.4}))], CANDS)
+    by = {r.candidate_id: r for r in res.ranked}
+    assert by["b"].aggregate_score == by["c"].aggregate_score < by["a"].aggregate_score

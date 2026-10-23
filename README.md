@@ -4,6 +4,18 @@ A modular AI Brain platform for AI CarryON, enabling channel-specific intelligen
 
 Architecture: open `docs/architecture/index.html` in a browser.
 
+## Phase 4: LangGraph integration (client lives in ai-carryon-saas)
+
+The pipeline's Trend node calls `POST /v1/runtime/execute` before choosing a topic (client: `backend/ai/brain_platform/client.py` in `ai-carryon-saas`). Contract points this repo guarantees and tests (`services/engine/tests/test_api.py`, `test_runtime.py`):
+
+- Response carries `source` (`brains` | `partial` | `baseline_fallback`), `policy_version`, `execution_id`, `ranked`, and each Brain's `brain_id` / `brain_version_id` / `role` / `status`, so the pipeline can record exactly where a pick came from.
+- A Brain whose scores are all identical **abstains** from fusion (no alphabetical tie-break leaking in as a fake recommendation), and tied scores inside an informative Brain share a rank. Candidates nobody scored come back as `unscored` with `aggregate_score` 0.0 in the caller's order.
+- No attached Brain, wrong workspace, disabled attachment: `baseline_fallback`, never an error.
+
+```bash
+make test   # engine suite runs the DB-backed tests once `make up && make migrate` has run
+```
+
 ## Phase 3: Brain Runtime (engine, :8001)
 
 `POST /v1/runtime/execute` (header `x-workspace-id`) takes `channel_id` + candidate topics, resolves that channel's active attachments (pinned immutable versions, same workspace), runs the Brains in parallel (per-Brain timeout, concurrency cap), fuses rankings with reciprocal-rank fusion (`rrf-v1`; Brain scores are not assumed comparable), and returns each Brain's standard response plus `source`: `brains`, `partial` or `baseline_fallback`. Shadow Brains run and are recorded but never affect the ranking. One Brain failing or timing out never fails the call. Starter Brain type: `heuristic` (set `brain_type` to `heuristic` when creating the Brain).

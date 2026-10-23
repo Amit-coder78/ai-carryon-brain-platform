@@ -46,16 +46,33 @@ async def _run_one(rb: ResolvedBrain, candidates: list[Candidate], opts: Options
                              duration_ms=int((time.perf_counter() - t0) * 1000))
 
 
+def _competition_ranks(ordered: list[Recommendation]) -> list[int]:
+    """1,1,3 style ranks: equal scores share a rank instead of being split by candidate id."""
+    ranks, prev, prev_rank = [], None, 0
+    for i, rec in enumerate(ordered, start=1):
+        if rec.score != prev:
+            prev, prev_rank = rec.score, i
+        ranks.append(prev_rank)
+    return ranks
+
+
 def aggregate(responses: list[BrainResponse]) -> list[Ranked]:
-    """Reciprocal rank fusion over contributing (ok, non-shadow) Brains."""
+    """Reciprocal rank fusion over contributing (ok, non-shadow) Brains.
+
+    A Brain whose scores are all identical has expressed no preference, so it abstains: it adds no
+    votes. Otherwise its candidate-id tie-break order would leak into the fused ranking as noise
+    that looks like a real recommendation. Ties inside an informative Brain share a rank.
+    """
     scores: dict[str, float] = {}
     ranks: dict[str, dict[str, int]] = {}
     reasons: dict[str, set[str]] = {}
     for r in responses:
+        if len({rec.score for rec in r.recommendations}) < 2:
+            continue   # no spread (or a single candidate): nothing to rank
         ordered = sorted(r.recommendations, key=lambda x: (-x.score, x.candidate_id))
-        for i, rec in enumerate(ordered, start=1):
-            scores[rec.candidate_id] = scores.get(rec.candidate_id, 0.0) + 1.0 / (RRF_K + i)
-            ranks.setdefault(rec.candidate_id, {})[str(r.brain_id)] = i
+        for rank, rec in zip(_competition_ranks(ordered), ordered):
+            scores[rec.candidate_id] = scores.get(rec.candidate_id, 0.0) + 1.0 / (RRF_K + rank)
+            ranks.setdefault(rec.candidate_id, {})[str(r.brain_id)] = rank
             reasons.setdefault(rec.candidate_id, set()).update(rec.reason_codes)
     return [Ranked(candidate_id=cid, aggregate_score=round(s, 8), ranks=ranks[cid], reason_codes=sorted(reasons[cid]))
             for cid, s in sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))]
