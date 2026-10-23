@@ -60,6 +60,7 @@ paths:
   /v1/channels/{channel_id}/brains: {get: {summary: Brains on a channel, parameters: [{name: channel_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
   /v1/channels/{channel_id}/brain/search: {post: {summary: Search brain knowledge (authorize first), parameters: [{name: channel_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
   /v1/ideas/rank: {post: {summary: Rank candidate topics, responses: {"200": {description: ranked result with brain versions used and fallback source}}}}
+  /v1/runtime/execute: {post: {summary: "Run attached Brains on candidates (served by the engine, port 8001). Needs x-workspace-id. Returns fused ranking, source brains|partial|baseline_fallback, and each Brain's standard response.", responses: {"200": {description: ok}, "400": {description: bad identity}, "422": {description: invalid candidates}, "503": {description: database unavailable}}}}
   /v1/decisions: {get: {summary: List decisions, responses: {"200": {description: ok}}}}
   /v1/decisions/{decision_id}: {get: {summary: Get decision, parameters: [{name: decision_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
   /v1/observations: {post: {summary: Record observation, parameters: [{$ref: "#/components/parameters/IdempotencyKey"}], responses: {"202": {description: accepted}}}}
