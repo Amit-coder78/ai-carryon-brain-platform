@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Brain package manifest",
+  "type": "object",
+  "required": ["schema_version", "brain_id", "brain_version", "name", "brain_type", "capabilities", "compatible_runtimes", "files"],
+  "properties": {
+    "schema_version": {"type": "string"},
+    "brain_id": {"type": "string", "format": "uuid"},
+    "brain_version": {"type": "integer", "minimum": 1},
+    "name": {"type": "string"},
+    "brain_type": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "compatible_runtimes": {"type": "array", "items": {"type": "string"}},
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}
+      }
+    },
+    "restoration": {"type": "string"}
+  },
+  "additionalProperties": false
+}
