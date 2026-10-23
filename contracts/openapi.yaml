@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: AI CarryON Brain Platform API
   version: 0.1.0
-  description: Proposed contracts. Only /v1/health and /v1/ready are implemented in Phase 1.
+  description: Phase 2 implements health/ready, workspaces, channels, brains, versions, attachments, channel brain list and audit. Everything else is still proposed. Registry routes require header x-workspace-id (uuid); x-actor is recorded in the audit log. This header identity is a placeholder for real authentication.
 servers: [{url: http://localhost:3000}]
 components:
   parameters:
@@ -39,6 +39,9 @@ components:
 paths:
   /v1/health: {get: {summary: Liveness, responses: {"200": {description: ok}}}}
   /v1/ready: {get: {summary: Readiness, responses: {"200": {description: ready}, "503": {description: not ready}}}}
+  /v1/workspaces: {post: {summary: Create workspace (Phase 2 helper), responses: {"201": {description: created}}}}
+  /v1/channels: {post: {summary: Create channel in the x-workspace-id workspace (Phase 2 helper), responses: {"201": {description: created}, "409": {description: name exists}}}}
+  /v1/audit: {get: {summary: Latest 200 audit events for the workspace, responses: {"200": {description: ok}}}}
   /v1/brains:
     get: {summary: List brains, responses: {"200": {description: ok}}}
     post:
@@ -46,7 +49,7 @@ paths:
       parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
       responses: {"201": {description: created}}
   /v1/brains/{brain_id}: {get: {summary: Get brain, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
-  /v1/brains/{brain_id}/versions: {get: {summary: List versions, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/brains/{brain_id}/versions: {post: {summary: Create next immutable version, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"201": {description: created}}}, get: {summary: List versions, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
   /v1/brains/{brain_id}/clone: {post: {summary: Clone brain, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"202": {description: job accepted}}}}
   /v1/brains/{brain_id}/export: {post: {summary: Export package, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"202": {description: job accepted}}}}
   /v1/brains/import: {post: {summary: Import package (inactive until activated), responses: {"202": {description: job accepted}}}}

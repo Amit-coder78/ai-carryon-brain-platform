@@ -4,7 +4,15 @@ A modular AI Brain platform for AI CarryON, enabling channel-specific intelligen
 
 Architecture: open `docs/architecture/index.html` in a browser.
 
-## Phase 1 (this patch)
+## Phase 2: Brain Registry API
+
+Workspaces, channels, Brains, immutable versions, attachments (attach / detach / disable / replace), per-channel brain list and audit log, all in `services/api/src/registry.js`. Registry calls need `x-workspace-id: <uuid>` (placeholder identity until real auth). Rules enforced: one active primary Brain per channel, one live attachment per Brain+channel, versions immutable and numbered per Brain, Idempotency-Key on create calls, workspace isolation (other workspaces get 404).
+
+```bash
+make migrate && make test   # 13 tests, needs `make up` for Postgres
+```
+
+## Phase 1
 
 Boundaries, identifiers, schemas, API contracts, first migration, two health-checked service skeletons.
 
