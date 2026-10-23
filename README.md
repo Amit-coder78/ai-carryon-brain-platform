@@ -20,12 +20,13 @@ Boundaries, identifiers, schemas, API contracts, first migration, two health-che
 ## Run
 
 ```bash
-cp .env.example .env
-docker compose up -d postgres
-./scripts/migrate.sh
-cd services/api && npm install && npm start      # :3000
-cd services/engine && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --port 8000
-curl localhost:3000/v1/health; curl localhost:3000/v1/ready; curl localhost:8000/v1/ready
+make setup      # .env, npm install, python venv
+make up         # postgres (pgvector)
+make migrate
+make api        # :3000
+make engine     # :8000 (second terminal)
+make check      # health/ready on both
+make test
 ```
 
 Secrets never go in this repo.
