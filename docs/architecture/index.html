@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI CarryON Channel Brain – Architecture</title>
+<style>
+:root{--bg:#0b1220;--pn:#121c2f;--ln:#25344f;--tx:#e4eaf3;--mu:#8fa0b8;--E:#3cc4ba;--P:#7aa2ff;--O:#e3a34a;--X:#c58bf2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:22px 28px 0}h1{font:700 26px Georgia,serif;margin:0 0 4px}.sub{color:var(--mu);margin:0 0 14px;max-width:80ch}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;padding:0 28px;border-bottom:1px solid var(--ln)}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mu);padding:8px 10px;font:inherit;font-size:13.5px;cursor:pointer}
+.tabs button:hover,.tabs button:focus-visible{color:var(--tx);outline:none}.tabs button.on{color:var(--E);border-color:var(--E)}
+main{padding:22px 28px 60px;max-width:1300px}.pane{display:none}.pane.on{display:block}
+h2{font:700 21px Georgia,serif;margin:0 0 8px}h3{font-size:15px;margin:16px 0 6px}p{margin:0 0 10px;max-width:80ch;color:#c5cfdd}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin:12px 0}
+.c{background:var(--pn);border:1px solid var(--ln);border-radius:10px;padding:14px 16px}.c h3{margin:0 0 6px}.c p,.c li{font-size:13.5px;color:var(--mu)}
+ul{margin:0;padding-left:18px}code{font:12.5px ui-monospace,Menlo,monospace;background:#1b2940;padding:1px 5px;border-radius:4px}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--pn);border:1px solid var(--ln);margin:10px 0}th,td{text-align:left;padding:7px 11px;border-bottom:1px solid var(--ln);vertical-align:top}th{background:#17233a}
+.fl{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0;font-size:13px}.fl span{background:var(--pn);border:1px solid var(--ln);border-radius:7px;padding:5px 10px}.fl i{color:var(--O);font-style:normal}
+.note{border-left:3px solid var(--O);background:#2a2415;padding:9px 13px;border-radius:0 8px 8px 0;font-size:13.5px;margin:12px 0;max-width:82ch}
+.b{font-size:11.5px;padding:1px 8px;border-radius:99px;border:1px solid;white-space:nowrap}.bE{color:var(--E)}.bP{color:var(--P)}.bO{color:var(--O)}.bX{color:var(--X)}
+.bar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--mu);margin-bottom:8px}.bar svg{vertical-align:middle}
+.bar input{background:var(--pn);border:1px solid var(--ln);color:var(--tx);border-radius:8px;padding:5px 10px;font:inherit;font-size:13px}
+.bar button{background:var(--pn);border:1px solid var(--ln);color:var(--tx);border-radius:6px;padding:3px 10px;cursor:pointer}
+#dg{width:100%;height:min(74vh,720px);background:#0e1729;border:1px solid var(--ln);border-radius:12px;cursor:grab;touch-action:none}
+.nd{cursor:pointer}.nd rect{fill:var(--pn);stroke-width:1.6}.nd text{fill:var(--tx);font-size:12px;text-anchor:middle}.nd:hover rect,.nd.sel rect{fill:#1b2a45}
+.gb{fill:none;stroke:var(--ln);stroke-dasharray:3 5}.gl{fill:var(--mu);font-size:12px}.lb{fill:var(--mu);font-size:10.5px;text-anchor:middle;paint-order:stroke;stroke:#0e1729;stroke-width:4px}
+#det{margin-top:12px}#det dl{display:grid;grid-template-columns:130px 1fr;gap:4px 14px;margin:8px 0 0;font-size:13.5px}#det dt{color:var(--mu)}#det dd{margin:0}
+.rm{counter-reset:s;list-style:none;padding:0}.rm li{counter-increment:s;display:grid;grid-template-columns:36px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--ln);font-size:14px}.rm li:before{content:counter(s);color:var(--E);font-weight:700}
+
+.nd.grp>rect{fill:#0f1a2e}.nd:focus{outline:none}.nd:focus-visible>rect{stroke:#fff;stroke-width:3.4}.nd.hit>rect{stroke-width:3.6;fill:#1f3a4d}.nd.dim{opacity:.18}
+#dg:focus-visible{outline:2px solid #fff}#res{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}#res button:focus-visible{outline:2px solid var(--E);outline-offset:2px}.tabs button[aria-selected="true"]{color:var(--E);border-color:var(--E)}#res button,.bar button{background:var(--pn);border:1px solid var(--ln);color:var(--tx);border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;font-size:12.5px}
+.err{border:1px solid #e5606b;background:#33161a;padding:10px 14px;border-radius:8px;margin-bottom:10px;font-size:13px}.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
+.tbl{overflow-x:auto}.stack{border:1px solid var(--ln);border-radius:10px;overflow:hidden;margin:12px 0}.layer{display:grid;grid-template-columns:150px 1fr;background:var(--pn);border-bottom:1px solid var(--ln)}.layer b{padding:10px 14px;color:var(--E);font-size:13.5px}.layer div{padding:10px 14px;font-size:13.5px;color:var(--mu)}
+.note.ok{border-color:var(--E);background:#12312f}pre{background:#1b2940;padding:12px 14px;border-radius:8px;overflow-x:auto;font:12.5px/1.5 ui-monospace,Menlo,monospace;max-width:92ch}#ref section{border-top:1px solid var(--ln);margin-top:14px;padding-top:14px}
+@media(max-width:700px){.layer{grid-template-columns:1fr}header{padding:18px 16px 0}.tabs{padding:0 12px}main{padding:18px 12px 42px}#dg{height:65vh;min-height:420px}.bar{gap:8px}#det dl{grid-template-columns:105px 1fr}}</style></head><body>
+<header><h1>AI CarryON Channel Brain Platform</h1>
+<p class="sub">How the creator dashboard, the existing LangGraph pipeline, the Brain Runtime, independent Channel Brains, the learning engine and storage connect, and how published videos feed back into learning. A proposed design, not a description of finished software.</p></header>
+<div class="tabs" id="tabs" role="tablist" aria-label="Architecture sections"></div>
+<main id="m"></main>
+<template id="refT">
+
+
+<section id="overview">
+<h2>Overview</h2>
+<p>AI CarryON keeps producing and publishing videos. The Channel Brain platform adds the intelligence around it: learning from comments, analytics and past decisions, and returning recommendations the pipeline can use.</p>
+<div class="g">
+<div class="c"><h3>Independent Brains</h3><p>Searchable, reusable and versioned assets that attach to channels and detach again.</p></div>
+<div class="c"><h3>Isolated learning</h3><p>Each channel keeps its own learning state. Sharing a model never shares private audience history.</p></div>
+<div class="c"><h3>Traceable decisions</h3><p>Every recommendation records evidence, confidence, Brain version and policy version.</p></div>
+<div class="c"><h3>Portable packages</h3><p>Export, import, clone and restore Brains, with a path to distributing them outside AI CarryON.</p></div>
+</div>
+<h3>Who does what</h3>
+<div class="tbl"><table>
+<tr><th>System</th><th>Responsibility</th></tr>
+<tr><td>Existing AI CarryON</td><td>Produces and publishes videos (LangGraph workflow)</td></tr>
+<tr><td>Express.js Platform API</td><td>Workspaces, channels, permissions, Brain assets and lifecycle operations</td></tr>
+<tr><td>Python Learning Engine</td><td>Inference, demand estimation, prediction, training, evaluation</td></tr>
+<tr><td>Brain Registry</td><td>Brain identities, metadata, versions and lifecycle state</td></tr>
+<tr><td>Decision Coordinator</td><td>Runs selected Brains and combines their outputs</td></tr>
+<tr><td>Brain Runtime</td><td>Executes a selected immutable Brain version, initially inside the FastAPI service</td></tr><tr><td>PostgreSQL</td><td>Structured records and learning history</td></tr>
+<tr><td>Vector search</td><td>Retrieves semantically relevant learned knowledge</td></tr>
+<tr><td>Object storage</td><td>Model artifacts, snapshots, Brain exports</td></tr>
+<tr><td>Background workers</td><td>Comments, analytics, training, export jobs</td></tr>
+</table></div>
+<p>The pipeline and the learning engine talk only through documented APIs and event contracts, never through each other's internals.</p>
+</section>
+
+<section id="layers">
+<h2>Architecture layers</h2>
+<div class="stack">
+<div class="layer"><b>1. Dashboard</b><div>Brain search, detail pages, attachment management, version and model inspection, learning history, decision logs, import/export, execution groups, audit history. A management view, not the source of truth.</div></div>
+<div class="layer"><b>2. Express.js API</b><div>Authentication, workspace and channel ownership, Registry operations, attachment lifecycle, version selection, import/export orchestration, search, validation, rate limiting, audit events.</div></div>
+<div class="layer"><b>3. Registry and Coordinator</b><div>The Registry tracks identity, ownership, versions, capabilities and status. The Coordinator picks eligible Brains, invokes them, validates responses and applies the decision policy.</div></div>
+<div class="layer"><b>4. Python Learning Engine</b><div>FastAPI service for comment classification, clustering, demand estimation, performance prediction, bandits, rewards, training, evaluation and knowledge retrieval.</div></div>
+<div class="layer"><b>5. Persistent storage</b><div>PostgreSQL as source of truth, a vector index for semantic search, object storage for artifacts. Redis and a job queue for caching, concurrency and async work.</div></div>
+</div>
+<div class="note">Training, embedding generation and exports run as background jobs. They never block an HTTP request.</div>
+</section>
+
+<section id="principles">
+<h2>Architectural principles</h2>
+<div class="g">
+<div class="c"><h3>Identity ≠ attachment</h3><p><code>brain_tech_001</code> can be detached from a channel without deleting what it learned. Detaching from one channel never affects others.</p></div>
+<div class="c"><h3>Channel-level isolation</h3><p>Observations, comment signals, demand estimates, experiments and decisions belong to a workspace and channel.</p></div>
+<div class="c"><h3>Versioning</h3><p>Models, strategy, policy, training snapshot, evaluation report and export manifest all carry explicit versions.</p></div>
+<div class="c"><h3>Replaceable parts</h3><p>New models, search engines, storage and Brain types plug in through interfaces. No hardcoded channels.</p></div>
+<div class="c"><h3>Traceable decisions</h3><p>Evidence references, confidence, Brain version, policy version and rationale are preserved.</p></div>
+</div>
+</section>
+
+<section id="registry">
+<h2>Brain Registry</h2>
+<p>The central catalogue. Each Brain has a stable, generated <code>brain_id</code> that is independent of its display name.</p>
+<pre>brain_id · owner_workspace_id · name · description · brain_type
+capabilities · status · current_version_id · created_at · updated_at</pre>
+<div class="tbl"><table>
+<tr><th>Example Brain</th><th>Example ID</th><th>Purpose</th></tr>
+<tr><td>Cricket Performance</td><td><code>brain_cricket_001</code></td><td>Predict cricket content performance</td></tr>
+<tr><td>Bhakti Audience</td><td><code>brain_bhakti_001</code></td><td>Understand devotional audience interests</td></tr>
+<tr><td>Tech Demand</td><td><code>brain_tech_001</code></td><td>Estimate demand for technology topics</td></tr>
+<tr><td>Finance Research</td><td><code>brain_finance_001</code></td><td>Evaluate finance topic opportunities</td></tr>
+<tr><td>Universal Topic Analyzer</td><td><code>brain_topic_001</code></td><td>Analyze topics using permitted shared capabilities</td></tr>
+</table></div>
+<p>These IDs are illustrative. The application generates real ones.</p>
+<p>The Registry supports exact lookup, name and description search, filters by type, capability, owner and permission, lists of available and attached Brains, version history, lifecycle status, dependency inspection and searchable audit history.</p>
+</section>
+
+<section id="lifecycle">
+<h2>Brain lifecycle</h2>
+<p>Disable, detach, archive, replace, clone and delete are different operations.</p>
+<div class="g">
+<div class="c"><h3>Attach</h3><p>Check permissions, ownership or sharing, and compatibility. Create the binding, load and verify the version, activate only after validation, write the audit event.</p></div>
+<div class="c"><h3>Detach</h3><p>Mark detaching, stop new work, finish or cancel in-flight jobs by policy, mark detached. Identity, state, artifacts and history stay. The Brain remains searchable.</p></div>
+<div class="c"><h3>Disable</h3><p>Temporarily blocks execution without deleting the Brain or necessarily removing the binding. Useful for debugging and quality concerns.</p></div>
+<div class="c"><h3>Replace</h3><p>Validate, pick a compatible version, optionally shadow-evaluate, switch atomically, keep old references, monitor, roll back if needed.</p></div>
+<div class="c"><h3>Clone</h3><p>New identity from a snapshot. Explicitly choose what is copied. Never silently inherit credentials, private comments or unauthorized audience data.</p></div>
+<div class="c"><h3>Archive</h3><p>Removes the Brain from normal selection and keeps records and artifacts under the retention policy.</p></div>
+<div class="c"><h3>Delete</h3><p>Checks active bindings, dependent Brains, running jobs, export dependencies, retention and authorization. Removing a binding never deletes a shared Brain.</p></div>
+</div>
+</section>
+
+<section id="binding">
+<h2>Channel-to-Brain binding</h2>
+<p>The relationship lives in its own <code>channel_brain_bindings</code> table, never as a permanent property of the Brain.</p>
+<pre>binding_id · workspace_id · channel_id · brain_id · brain_version_id
+role · status · priority · attached_at · detached_at</pre>
+<p>Roles: <code>primary</code>, <code>supporting</code>, <code>experimental</code>, <code>shadow</code>. Limits on active primary Brains follow the channel policy. A Brain attaches to several channels only if its sharing permissions allow it.</p>
+</section>
+
+<section id="parallel">
+<h2>Parallel Brain execution</h2>
+<p>A channel can run a group, for example Performance, Audience Demand, Trend and Quality Brains, over the same candidate topics.</p>
+<div class="fl"><span>Select bindings</span><i>→</i><span>Resolve versions</span><i>→</i><span>Assign execution_id</span><i>→</i><span>Run concurrently</span><i>→</i><span>Timeouts and limits</span><i>→</i><span>Validate responses</span><i>→</i><span>Normalize scores</span><i>→</i><span>Aggregate (versioned policy)</span><i>→</i><span>Rank and explain</span><i>→</i><span>Record decision</span></div>
+<h3>Standard Brain response</h3>
+<pre>execution_id · brain_id · brain_version_id · status · recommendations
+confidence · evidence_refs · reason_codes · created_at</pre>
+<div class="note">Confidence from different models is not necessarily calibrated or comparable, so the Coordinator must normalize it. Hard policy constraints stay separate from ranking scores.</div>
+</section>
+
+<section id="learning">
+<h2>Learning engine</h2>
+<p>Different evidence gets different learning strategies.</p>
+<div class="g">
+<div class="c"><h3>Comment understanding</h3><p>A language model or classifier labels comments: requests, questions, praise, criticism, corrections, spam, other. No retraining per comment.</p></div>
+<div class="c"><h3>Topic clustering</h3><p>Embeddings group similar requests (for example, "build AI agents" variants) while keeping materially different topics apart.</p></div>
+<div class="c"><h3>Demand estimation</h3><p>Uses request counts, distinct requesters, recency, spam filtering, audience size, relevance, history and uncertainty. One request never triggers a video by itself.</p></div>
+<div class="c"><h3>Performance prediction</h3><p>A supervised model such as CatBoost, once enough representative history exists. Do not assume it transfers between channels.</p></div>
+<div class="c"><h3>Contextual bandit</h3><p>Balances reusing promising strategies against testing alternatives, accounting for uncertainty and experiment cost.</p></div>
+<div class="c"><h3>Reward function</h3><p>Versioned and normalized: relative views, retention, engagement, shares, subscriber conversion. Compare videos at similar ages.</p></div>
+</div>
+<div class="tbl"><table>
+<tr><th>Component</th><th>Update strategy</th></tr>
+<tr><td>Comment classification</td><td>Inference on new comments</td></tr>
+<tr><td>Topic-demand estimates</td><td>Incremental updates</td></tr>
+<tr><td>Topic clusters</td><td>Incremental assignment, periodic maintenance</td></tr>
+<tr><td>Contextual bandit</td><td>Incremental or scheduled</td></tr>
+<tr><td>Performance model</td><td>Periodic retraining</td></tr>
+<tr><td>Learned strategy</td><td>Updated from accumulated evidence</td></tr>
+<tr><td>Active model version</td><td>Promoted only after evaluation</td></tr>
+</table></div>
+<p>Every training run records its data snapshot, configuration, evaluation results and resulting model version.</p>
+</section>
+
+<section id="search">
+<h2>Search</h2>
+<p>Search is a core feature with two modes.</p>
+<div class="g">
+<div class="c"><h3>Structured</h3><p>Brain ID, name, owner workspace, channel bindings, type, capabilities, status, model version, dates.</p></div>
+<div class="c"><h3>Semantic knowledge</h3><p>Natural-language questions such as "Which hooks performed well for AI agent tutorials?" return summaries, evidence references, confidence and version.</p></div>
+</div>
+<div class="note ok">Vector similarity is not authorization. Permissions are enforced before any result is returned, filtered by workspace and channel.</div>
+<pre>POST /v1/channels/{channel_id}/brain/search
+{ "query": "Which hooks worked best for AI agent tutorials?",
+  "filters": { "knowledge_type": "performance_pattern" }, "limit": 10 }
+
+{ "channel_id": "ch_tech_001", "brain_id": "brain_tech_001", "brain_version": "v12",
+  "results": [{ "knowledge_id": "knowledge_104",
+    "summary": "Demonstration-led hooks performed well in the evaluated sample",
+    "confidence": 0.78, "evidence_count": 24 }] }</pre>
+<p>Example values are illustrative, not real findings.</p>
+</section>
+
+<section id="database">
+<h2>Database design</h2>
+<div class="tbl"><table>
+<tr><th>Table</th><th>Responsibility</th></tr>
+<tr><td><code>workspaces</code></td><td>Owners, tenants, settings</td></tr>
+<tr><td><code>channels</code></td><td>Channel identities and metadata</td></tr>
+<tr><td><code>brains</code></td><td>Identity, ownership, type, lifecycle status</td></tr>
+<tr><td><code>brain_versions</code></td><td>Version history and artifact references</td></tr>
+<tr><td><code>channel_brain_bindings</code></td><td>Channel-to-Brain relationships</td></tr>
+<tr><td><code>brain_groups</code>, <code>brain_group_members</code></td><td>Parallel execution groups and roles</td></tr>
+<tr><td><code>video_observations</code></td><td>Video features and performance measurements</td></tr>
+<tr><td><code>comment_signals</code></td><td>Classified, privacy-aware audience feedback</td></tr>
+<tr><td><code>topic_clusters</code></td><td>Grouped requests and demand estimates</td></tr>
+<tr><td><code>decision_logs</code></td><td>Recommendations, evidence, versions, chosen actions</td></tr>
+<tr><td><code>experiments</code></td><td>Experiment definitions and outcomes</td></tr>
+<tr><td><code>model_registry</code></td><td>Model versions and evaluation metadata</td></tr>
+<tr><td><code>brain_executions</code></td><td>Execution requests, statuses, results</td></tr>
+<tr><td><code>brain_exports</code></td><td>Export jobs, manifests, checksums</td></tr>
+<tr><td><code>audit_events</code></td><td>Lifecycle and security events</td></tr>
+</table></div>
+<ul>
+<li>Foreign keys for integrity; indexes on workspace and channel access paths.</li>
+<li>Unique constraints on version numbers within a Brain.</li>
+<li>Idempotency keys for retried ingestion and lifecycle requests.</li>
+<li>Large artifacts live outside PostgreSQL.</li>
+<li>Transactions for attachment changes and active-version switches.</li>
+<li>Complete migrations before production workflows.</li>
+</ul>
+</section>
+
+<section id="api">
+<h2>API</h2>
+<p>Versioned under <code>/v1</code>. Every endpoint needs a documented schema, authorization checks, structured errors, request tracing and rate limits. Long tasks return a job ID.</p>
+<div class="tbl"><table>
+<tr><th>Group</th><th>Endpoints</th></tr>
+<tr><td>Registry</td><td><code>POST /v1/brains</code> · <code>GET /v1/brains</code> · <code>GET /v1/brains/{brain_id}</code> · <code>GET /v1/brains/{brain_id}/versions</code> · <code>POST /v1/brains/{brain_id}/clone</code> · <code>POST /v1/brains/{brain_id}/export</code></td></tr>
+<tr><td>Import and jobs</td><td><code>POST /v1/brains/import</code> · <code>GET /v1/brain-jobs/{job_id}</code></td></tr>
+<tr><td>Bindings</td><td><code>GET /v1/channels/{channel_id}/brains</code> · <code>POST /v1/attachments</code> · <code>POST /v1/attachments/{attachment_id}/detach</code> · <code>/replace</code> · <code>/disable</code></td></tr>
+<tr><td>Search and learning</td><td><code>POST /v1/channels/{channel_id}/brain/search</code> · <code>POST /v1/ideas/rank</code> · <code>POST /v1/observations</code> · <code>POST /v1/comment-signals</code> · <code>GET /v1/health</code></td></tr>
+</table></div>
+</section>
+
+<section id="integration">
+<h2>AI CarryON integration</h2>
+<p>The LangGraph workflow calls the Brain platform at defined decision points.</p>
+<div class="fl"><span>Trend discovery</span><i>→</i><span><b>Rank topics</b></span><i>→</i><span>Research and plan</span><i>→</i><span><b>Get learned preferences</b></span><i>→</i><span>Script, thumbnail, voice, video</span><i>→</i><span>Review and publish</span><i>→</i><span><b>Record video ID and features</b></span><i>→</i><span><b>Ingest analytics and comments</b></span></div>
+<ul>
+<li><b>Before topic selection:</b> the Planner sends candidates and channel context. The Coordinator returns ranked topics, evidence, confidence and Brain versions.</li>
+<li><b>Before script generation:</b> hooks, structures, duration ranges, topic patterns, demand and known uncertainties. These guide generation and are not rigid rules.</li>
+<li><b>After publishing:</b> record the video ID and content features, then add metrics as they arrive.</li>
+<li><b>After comments:</b> extract topic requests and update demand asynchronously.</li>
+</ul>
+<div class="note">If Brain services are down, AI CarryON follows a configured fallback policy and logs whether a recommendation came from a Brain, a partial Brain result or the baseline Planner.</div>
+</section>
+
+<section id="portability">
+<h2>Export and import</h2>
+<pre>brain-package/
+├── manifest.json
+├── channel-profile.json
+├── learned-strategy.json
+├── topic-demand-snapshot.json
+├── decision-policy.json
+├── model-registry.json
+├── evaluation-report.json
+├── provenance.json
+└── model-artifacts/</pre>
+<p>The manifest lists Brain ID and version, package schema version, type and capabilities, runtime and framework requirements, artifact locations, sizes and checksums, training-data snapshot references, evaluation results, restoration instructions and known limitations.</p>
+<h3>Import workflow</h3>
+<div class="fl"><span>Upload</span><i>→</i><span>Validate manifest</span><i>→</i><span>Verify checksums</span><i>→</i><span>Check compatibility</span><i>→</i><span>Scan files</span><i>→</i><span>Dry-run report</span><i>→</i><span>Create or select Brain</span><i>→</i><span>Restore permitted state</span><i>→</i><span>Health checks</span><i>→</i><span>Stay inactive</span></div>
+<div class="note ok">Exports never contain API keys, OAuth tokens or other secrets. An imported Brain stays inactive until the user activates or attaches it. Portability does not guarantee identical results on a different audience.</div>
+</section>
+
+<section id="security">
+<h2>Security, privacy and reliability</h2>
+<div class="g">
+<div class="c"><h3>Access</h3><p>Authenticate every request. Authorize by workspace and channel. Knowing an ID grants nothing.</p></div>
+<div class="c"><h3>Data</h3><p>Row-level security, metadata-filtered vector search, protected secrets, privacy-aware comment retention, backups and tested recovery.</p></div>
+<div class="c"><h3>Sharing</h3><p>Explicit authorization for Brain sharing and learning transfer. Validate imported packages.</p></div>
+<div class="c"><h3>Operations</h3><p>Rate limits, quotas, audit logs, dependency checks before deletion.</p></div>
+</div>
+<p><b>Observe:</b> API latency and errors, Brain success and timeout rates, search latency and relevance, ingestion delays and duplicates, training outcomes, candidate-versus-active quality, import/export failures, unauthorized attempts, storage and inference cost. Use structured logs, correlation IDs, bounded retries and dead-letter queues. Candidate models stay separate from active ones until they pass evaluation.</p>
+</section>
+
+<section id="roadmap"><h2>Implementation roadmap</h2><p>See the Roadmap tab for the current 12-step order.</p></section>
+
+<section id="acceptance">
+<h2>Acceptance criteria</h2>
+<p>Production-ready only when all of these are demonstrated:</p>
+<ul>
+<li>Users can search accessible Brains by ID, metadata and learned knowledge.</li>
+<li>Cross-workspace and cross-channel queries are rejected.</li>
+<li>A detached Brain keeps its state and can be reattached.</li>
+<li>Replacement preserves the old version history.</li>
+<li>A shared Brain detaches from one channel without breaking others.</li>
+<li>Several Brains run in parallel with traceable outputs.</li>
+<li>Every recommendation records Brain and policy versions.</li>
+<li>Duplicate ingestion events do not inflate counts.</li>
+<li>No candidate model goes active without passing evaluation gates.</li>
+<li>Packages are validated and checksummed before restoration.</li>
+<li>Deletion checks bindings and artifact dependencies.</li>
+<li>Import and export outcomes are auditable.</li>
+<li>A Brain timeout never silently misrepresents the recommendation source.</li>
+</ul>
+</section>
+
+<footer>AI CarryON Channel Brain Platform · Architecture v1.0 · Planning document. IDs, endpoints and example values are illustrative.</footer>
+</template>
+<script>
+const TABS=["Bird's-eye","Content pipeline","Registry & lifecycle","Parallel execution","Learning loop","Data & storage","API","Security","Deployment & observability","Roadmap","Full reference"];
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const STATUS={existing:"#3cc4ba",proposed:"#7aa2ff",optional:"#e3a34a",external:"#c58bf2"},STL={existing:"E",proposed:"P",optional:"O",external:"X"};
+const FIELDS=["purpose","inputs","outputs","deps","data","failure","security"],FL={purpose:"Purpose",inputs:"Inputs",outputs:"Outputs",deps:"Dependencies",data:"Data stored",failure:"Failure behavior",security:"Security boundary"};
+const ETYPE={sync:["#cfd8e6","",1.6],async:["#7aa2ff","7 5",1.6],feedback:["#e3a34a","2 4",2.2],persist:["#5b6b84","",1.2],external:["#c58bf2","7 5",1.6],telemetry:["#4f6b8f","1 4",1.3]};
+const D=(purpose,inputs,outputs,deps,data,failure,security)=>({purpose,inputs,outputs,deps,data,failure,security});
+const B=(name,focus)=>D(name+": "+focus+". Separate state, observations and decision history.","Candidates and channel context","Recommendations, confidence, evidence","Model registry, own learning state","Channel-scoped state only","A timeout returns no result","Attached only to authorized channels; no automatic data sharing");
+const nd=(id,label,x,y,w,h,status,d,parent)=>({id,label:Array.isArray(label)?label:[label],x,y,w,h,status,d,parent});
+const NODES=[
+nd("creator","Creator",30,60,170,50,"existing",D("Plans, reviews and publishes channel content.","Goals and approvals","Decisions made in the dashboard","Dashboard","None","Not applicable","Authenticated user with workspace and channel roles")),
+nd("dash",["Dashboard","(incl. Brain Manager)"],30,135,170,50,"proposed",D("Management UI for production and Brains. Not a source of truth.","User actions","API requests and views","Express.js API","None","Shows API errors and keeps no state","Uses the user session only")),
+nd("api",["Express.js","Platform API"],30,210,170,50,"proposed",D("Authentication, workspace and channel ownership, lifecycle operations, search, job creation and audit events.","Dashboard and service requests","Validated commands, job IDs","PostgreSQL, queue, FastAPI service","Users, workspaces, channels, attachments","Structured errors, bounded retries","Authorization on every request, rate limits")),
+nd("lg",["LangGraph","Pipeline"],30,310,170,50,"existing",D("Existing orchestrator for trends, research, scripts, media, review and publishing. Calls the Brain platform through an API or SDK.","Planner requests, channel context","Candidate topics, production jobs","Coordinator, production agents, YouTube","Workflow state","Uses the baseline Planner if Brain services fail and logs the source","No access to Brain internals")),
+nd("prod",["Script · Voice","Thumbnail · Video"],30,395,170,50,"existing",D("Script, Voice, Thumbnail and Video agents.","Approved topic and learned guidance","Script, audio, thumbnail, video","LangGraph","Asset files","Pipeline retry policy","Learned guidance is advisory")),
+nd("rev","Review Agent",30,470,170,50,"existing",D("Quality review before publishing.","Produced assets","Approval or revision request","LangGraph","Review results","Blocks publishing on failure","Hard publishing rules live here, not in models")),
+nd("pub",["YouTube Publish","& Schedule"],30,545,170,50,"existing",D("Publishes and schedules on YouTube, then records the video ID and content features used.","Approved video, schedule","Video ID, feature record","YouTube API, Secret Manager","Video IDs and features","Retries with idempotency keys","OAuth tokens only from the Secret Manager")),
+nd("yt",["YouTube APIs","Analytics · Comments"],30,640,170,50,"external",D("External YouTube Data and Analytics APIs for publishing, metrics and comments.","API requests","Metrics and comments","OAuth, API quotas","Owned by YouTube","Quota or permission limits delay ingestion","Availability depends on API permissions and scopes")),
+nd("mgmt",["Brain Registry · Lifecycle","Search · Versions · Attach"],270,135,190,60,"proposed",D("Brain Registry (identity, versions, capabilities, status), Lifecycle Manager, Search, Version Manager, Attachment Manager, import/export and access control.","Lifecycle and search requests","Brain records, attachments, audit events","PostgreSQL, vector search, object storage, queue","Brains, immutable versions, attachments, audit logs","Transactions roll back a failed version switch","Workspace and channel checks before any result")),
+nd("coord",["Parallel Brain","Coordinator"],270,300,190,50,"proposed",D("Decision Coordinator: resolves authorized attachments and versions, invokes the Runtime in parallel, validates results.","Candidate topics, channel ID","Validated Brain responses","Registry, Brain Runtime","Execution records","One Brain failing is isolated and partial results are kept","Only attached and authorized Brains run")),
+nd("runtime",["Brain Runtime /","Inference Service"],270,375,190,56,"proposed",D("Resolves the immutable version, loads config and artifacts, runs Brain logic, validates input and output, enforces timeouts and resource limits, records execution ID, version, duration, status and evidence. Starts inside the FastAPI service.","Brain ID, version, candidates, channel context","Standard response with confidence, evidence refs and reason codes","Registry, object storage, model registry","Execution records","Times out safely and returns no result, never a guess","Loads only the channel's own state")),
+nd("agg",["Decision Aggregator","(versioned policy)"],270,470,190,50,"proposed",D("Normalizes scores and applies a versioned aggregation policy. Hard constraints stay separate from ranking.","Brain responses","Ranked topics, explanation, policy version","Coordinator","Decision logs","Deterministic fallback policy","Models never override safety rules, permissions or publishing constraints")),
+nd("brains","Independent Channel Brains",505,255,200,345,"proposed",D("Independent, versioned Brain instances: Cricket, Bhakti, Tech, Finance, Horror and future Brains. Each has its own state, observations, demand estimates and decision history.","Candidates from the Runtime","Standard responses","Model registry, per-channel state","Channel-scoped learning state","A timeout returns no result","Isolated by workspace and channel")),
+nd("brain_cricket","Cricket Brain",520,285,170,34,"proposed",B("Cricket Brain","predicts cricket content performance"),"brains"),
+nd("brain_bhakti","Bhakti Brain",520,326,170,34,"proposed",B("Bhakti Brain","understands devotional audience interests"),"brains"),
+nd("brain_tech","Tech Brain",520,367,170,34,"proposed",B("Tech Brain","estimates demand for technology topics"),"brains"),
+nd("brain_finance","Finance Brain",520,408,170,34,"proposed",B("Finance Brain","evaluates finance topic opportunities"),"brains"),
+nd("brain_horror","Horror Brain",520,449,170,34,"proposed",B("Horror Brain","models horror audience interests"),"brains"),
+nd("brain_future","Future Brains",520,490,170,34,"optional",B("Future Brains","placeholder for Brain types added later"),"brains"),
+nd("ing",["Evidence Ingestion","& Validation"],760,80,200,50,"proposed",D("Receives analytics and comments, validates and normalizes them, then enqueues jobs. Idempotent.","YouTube metrics and comments","Validated observations, queued jobs","Queue, PostgreSQL","video_observations, comment_signals","Bounded retries, then dead-letter queue","Scoped by workspace and channel")),
+nd("und",["Dedup · Spam · Classify","Topic Extraction · Clustering"],760,160,200,60,"proposed",D("Validation and deduplication, spam filtering, comment classification, topic extraction and clustering.","Queued comments","Labels and topic clusters","Embeddings, vector search","topic_clusters","Unclear comments stay as other feedback","Raw comments are not exported")),
+nd("dem",["Demand Estimator","Performance Predictor"],760,250,200,50,"proposed",D("Demand estimation and video performance prediction with confidence. Shows correlation, not causation.","Clusters, history, features","Estimates with confidence","PostgreSQL","Estimates and sample sizes","Small samples lower confidence","Per-channel models and statistics")),
+nd("rew",["Reward Calculator","Decision Policy (Bandit)"],760,335,200,50,"proposed",D("Versioned reward calculation and contextual-bandit decision policy, updated incrementally.","Observations, reward config","Reward values, policy state","Demand and performance estimates","Reward configs and policy state","Keeps the previous policy on failure","Reward config set per channel")),
+nd("expt",["Experiment Tracking","+ Data-quality checks"],760,420,200,50,"proposed",D("Experiment ID and configuration, candidates, recommendation shown, action taken, Brain and policy versions, observation window, outcomes, reward and sample size. Checks missing analytics, duplicates, sample size, video age and channel baselines.","Decisions and observations","Experiment results","PostgreSQL","experiments","Incomplete experiments are flagged and not used for promotion","Scoped by channel")),
+nd("trn",["Training · Evaluation","(periodic, not per comment)"],760,505,200,56,"proposed",D("Periodic supervised retraining and evaluation. Never retrains after every comment. Candidates promote only after passing criteria.","Data snapshots","Candidate models, evaluation reports","Queue, object storage","Evaluation reports","A failed candidate never becomes active","Promotion requires passing evaluation")),
+nd("mreg",["Model Registry","Promotion · Rollback"],760,595,200,50,"proposed",D("Tracks model versions, promotion and rollback. Approved versions are made available to the Brain Runtime.","Evaluated candidates","Approved versions, rollback targets","PostgreSQL, object storage","Model versions, checksums, artifact references","Rolls back to the previous approved version","Only approved versions reach the Runtime")),
+nd("q",["Background Queue","& Workers (Redis optional)"],1010,80,160,50,"optional",D("Queue and workers for analytics polling, comment processing, embeddings, cluster maintenance, training, import/export and artifact validation. Redis is optional.","Job requests with idempotency keys","Job results and status records","Redis or equivalent","Job status records","Bounded retries and dead-letter handling","Service credentials only")),
+nd("pg","PostgreSQL",1010,160,160,50,"proposed",D("Primary source of truth.","Writes from the API, engine and workers","Records","None","Users, workspaces, channels, Brains, versions, attachments, observations, decisions, experiments, audit logs, job status","Backups and tested recovery","Row-level security; Brain versions are immutable")),
+nd("vec",["Vector Search","(pgvector or similar)"],1010,240,160,50,"proposed",D("Semantic retrieval of knowledge, comments, topics and learned patterns.","Embeddings","Ranked knowledge","PostgreSQL or a vector database","Embeddings","Falls back to structured filters","Filters by workspace and channel first. Similarity is not authorization")),
+nd("obj","Object Storage",1010,320,160,50,"proposed",D("Model artifacts, Brain snapshots, exports and evaluation reports.","Training and export jobs","Artifacts","None","Artifacts with checksums","A checksum failure blocks restore","No secrets inside artifacts")),
+nd("sec","Secret Manager",1010,400,160,50,"proposed",D("API credentials and OAuth tokens used by the API, publishing and YouTube access. Never stored in GitHub or exports.","Secret reads","Short-lived access","None","Credentials","Fails closed","Least-privilege access")),
+nd("obs",["Observability & Audit: metrics, correlation IDs across LangGraph, Coordinator, Runtime and learning jobs, audit events (no secrets in logs)"],30,730,1140,44,"proposed",D("Monitors API latency, per-Brain latency and timeouts, fallback rates, queue backlog, ingestion failures, drift, evaluation, import/export failures, cost and unauthorized requests.","Telemetry from services","Dashboards, alerts, audit trail","All services","Metrics, traces, audit events","Telemetry loss must not block requests","Logs exclude secrets and unnecessary raw personal data"))];
+const GROUPS=[["Creator & platform",14,38,202,570],["Brain management & execution",254,115,222,425],["Learning engine · Python / FastAPI",745,38,230,640],["Infrastructure",995,38,190,430]];
+const E=(from,to,type,label,o)=>Object.assign({from,to,type,label},o||{});
+const EDGES=[E("creator","dash","sync"),E("dash","api","sync"),E("api","lg","sync"),E("api","mgmt","sync","manage Brains"),
+E("lg","coord","sync","rank request",{dy1:-10}),E("coord","runtime","sync"),E("runtime","brains","sync","execute"),E("brains","agg","sync","responses",{dy1:55}),E("agg","lg","sync","ranked topics",{dy2:8}),
+E("lg","prod","sync"),E("prod","rev","sync"),E("rev","pub","sync"),E("pub","yt","external","publish"),
+E("yt","ing","feedback","analytics & comments",{path:"M200,665H735V105H760",lx:560,ly:659}),E("ing","q","async","enqueue",{dy2:-10}),E("q","und","async","worker jobs",{dy1:10,mx:978}),
+E("und","dem","feedback"),E("dem","rew","feedback"),E("rew","expt","feedback"),E("expt","trn","feedback"),E("trn","mreg","feedback"),
+E("mreg","runtime","feedback","approved versions & learned state",{path:"M760,620H490V415H460",lx:625,ly:613}),
+E("mgmt","pg","persist",null,{path:"M365,135V18H1002V185H1010"}),E("mgmt","vec","persist","registry & search",{path:"M365,135V18H1002V265H1010",lx:690,ly:12}),E("mgmt","obj","persist",null,{path:"M365,135V18H1002V345H1010"}),
+E("und","vec","persist",null,{mx:986}),E("expt","pg","persist",null,{mx:992}),E("mreg","obj","persist",null,{mx:988}),
+E("api","obs","telemetry",null,{path:"M215,608V730"}),E("runtime","obs","telemetry",null,{path:"M365,540V730"}),E("trn","obs","telemetry",null,{path:"M860,678V730"}),E("q","obs","telemetry","telemetry",{path:"M1090,468V730",lx:1120,ly:620})];
+const ISO=[["Brain definition and versions",["Brain identity, ownership and capabilities","Immutable brain_versions, never edited in place","Attached to several channels only when sharing permissions allow"]],["Channel-specific state",["Observations and comment signals","Demand statistics and reward history","Experiments and decision logs","Never mixed across channels automatically"]],["Shared artifacts",["Model artifacts and reusable algorithms","Shared only with explicit authorization","Sharing a model does not share audience data"]],["Lifecycle rules",["Detach keeps the Brain and its state","Clone: the user chooses what state is copied","Delete checks active attachments, dependencies, running jobs, retention and authorization"]]];
+const RESP=[["Brain Registry","Identity, ownership, capabilities, versions and lifecycle metadata"],["Decision Coordinator","Selects authorized Brains, invokes them in parallel, validates and aggregates results"],["Brain Runtime","Executes one selected immutable Brain version with validation, timeouts and resource limits. Records execution ID, version, duration, status and evidence"],["Learning Engine","Processes observations, estimates demand, trains and evaluates models, manages promotion and rollback"]];
+const byId={};NODES.forEach(n=>{if(n&&n.id&&!byId[n.id])byId[n.id]=n});
+function validate(){const err=[],seen=new Set();
+ NODES.forEach(n=>{if(!n.id||seen.has(n.id))err.push("Duplicate or missing node id: "+n.id);seen.add(n.id);
+  if(!STATUS[n.status])err.push(n.id+": invalid status "+n.status);
+  if(!n.d)err.push(n.id+": missing detail record");else FIELDS.forEach(f=>{if(!n.d[f])err.push(n.id+": missing detail "+f)});
+  ["x","y","w","h"].forEach(k=>{if(!Number.isFinite(n[k]))err.push(n.id+": bad "+k)});
+  if(!n.label||!n.label.length)err.push(n.id+": missing label");
+  if(n.parent&&!NODES.some(p=>p.id===n.parent))err.push(n.id+": unknown parent "+n.parent)});
+ EDGES.forEach((e,i)=>{[e.from,e.to].forEach(r=>{if(!byId[r])err.push("Edge "+i+" ("+e.from+" to "+e.to+"): unknown node "+r)});if(!ETYPE[e.type])err.push("Edge "+i+": invalid type "+e.type)});return err}
+const ERRS=validate();if(ERRS.length)console.error("Architecture data errors:\n"+ERRS.join("\n"));
+function route(a,b,e){const d1=e.dy1||0,d2=e.dy2||0;let x1,y1,x2,y2,mid;
+ if(a.x+a.w<b.x||b.x+b.w<a.x){const r=a.x<b.x;x1=r?a.x+a.w:a.x;x2=r?b.x:b.x+b.w;y1=a.y+a.h/2+d1;y2=b.y+b.h/2+d2;mid=e.mx!=null?e.mx:(x1+x2)/2;return["M"+x1+","+y1+"H"+mid+"V"+y2+"H"+x2,mid,(y1+y2)/2-4]}
+ x1=x2=a.x+a.w/2;const dn=a.y<b.y;y1=dn?a.y+a.h:a.y;y2=dn?b.y:b.y+b.h;return["M"+x1+","+y1+"V"+y2,x1+6,(y1+y2)/2]}
+function diagram(){let o="<defs>"+Object.keys(ETYPE).map(k=>`<marker id="m-${k}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L8,4L0,8z" fill="${ETYPE[k][0]}"/></marker>`).join("")+"</defs>";
+ GROUPS.forEach(g=>o+=`<rect class="gb" x="${g[1]}" y="${g[2]}" width="${g[3]}" height="${g[4]}" rx="12"/><text class="gl" x="${g[1]+10}" y="${g[2]-6}">${esc(g[0])}</text>`);
+ EDGES.forEach(e=>{const a=byId[e.from],b=byId[e.to],t=ETYPE[e.type];if(!a||!b||!t)return;let d,lx,ly;if(e.path){d=e.path;lx=e.lx;ly=e.ly}else{const r=route(a,b,e);d=r[0];lx=r[1];ly=r[2]}
+  o+=`<path d="${d}" fill="none" stroke="${t[0]}" stroke-width="${t[2]}" stroke-dasharray="${t[1]}" marker-end="url(#m-${e.type})"/>`+(e.label&&lx!=null?`<text class="lb" x="${lx}" y="${ly}">${esc(e.label)}</text>`:"")});
+ NODES.forEach(n=>{const c=STATUS[n.status]||"#888",L=n.label||[n.id],dash=n.status==="optional"?' stroke-dasharray="5 3"':"";
+  o+=`<g class="nd${n.id==="brains"?" grp":""}" data-id="${esc(n.id)}" tabindex="0" role="button" aria-label="${esc(L.join(" "))} (${esc(n.status)})"><rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10" stroke="${c}"${dash}/>`;
+  if(n.id==="brains")o+=`<text x="${n.x+n.w/2}" y="${n.y+17}">${esc(L[0])}</text>`;
+  else{const sm=n.id==="obs"?' style="font-size:11px"':"";o+=L.map((l,i)=>`<text${sm} x="${n.x+n.w/2}" y="${n.y+n.h/2+4+(i-(L.length-1)/2)*15}">${esc(l)}</text>`).join("")}
+  o+="</g>"});return o}
+function bird(){const sw=c=>`<span><i class="sw" style="background:${c}"></i>`;const ln=(c,d,w)=>`<svg width="34" height="8" aria-hidden="true"><path d="M0,4H34" stroke="${c}" stroke-width="${w}" stroke-dasharray="${d}"/></svg>`;
+ return (ERRS.length?`<div class="err" role="alert"><b>Architecture data errors (${ERRS.length}):</b><br>${ERRS.map(esc).join("<br>")}</div>`:"")+
+ `<div class="bar"><input id="q" type="search" placeholder="Search components" aria-label="Search components"><button id="qc" type="button">Clear</button><span id="cnt" aria-live="polite"></span>${sw("#3cc4ba")}Existing</span>${sw("#7aa2ff")}Proposed</span>${sw("#e3a34a")}Optional (dashed)</span>${sw("#c58bf2")}External</span>
+<span>${ln("#cfd8e6","",2)} sync call</span><span>${ln("#7aa2ff","7 5",2)} async job</span><span>${ln("#e3a34a","2 4",2.4)} feedback / learning</span><span>${ln("#5b6b84","",1.4)} persistence</span><span>${ln("#c58bf2","7 5",2)} external</span><span>${ln("#4f6b8f","1 4",1.4)} telemetry</span>
+<button id="zi" type="button" aria-label="Zoom in">+</button><button id="zo" type="button" aria-label="Zoom out">−</button><button id="zr" type="button">Reset</button></div><div id="res"></div>
+<svg id="dg" viewBox="0 0 1200 800" tabindex="0" role="group" aria-label="Bird's-eye architecture diagram. Tab moves between components, Enter selects, plus and minus zoom, arrow keys pan, 0 resets.">${diagram()}</svg>
+<div class="c" id="det" aria-live="polite"><h3>Select a component</h3><p>Click or press Enter on any box for its purpose, inputs, outputs, dependencies, stored data, failure behavior and security boundary. Scroll or use + and − to zoom, drag to pan.</p></div>`}
+function showDetail(id){const p=$("det"),n=byId[id];if(!p)return;if(!n){p.innerHTML=`<h3>Unknown component</h3><p>No details are registered for "${esc(id)}".</p>`;return}
+ const d=n.d||{};p.innerHTML=`<h3>${esc((n.label||[id]).join(" "))} <span class="b b${STL[n.status]||"X"}">${esc(n.status)}</span></h3><dl>${FIELDS.map(f=>`<dt>${FL[f]}</dt><dd>${esc(d[f]||"Not documented")}</dd>`).join("")}</dl>`}
+function mountBird(){const svg=$("dg");let vb={x:0,y:0,w:1200,h:800},drag=null,moved=false;const cl=(v,a,b)=>Math.min(b,Math.max(a,v));
+ const apply=()=>{const r=svg.getBoundingClientRect();if(r.width&&r.height)vb.h=vb.w*r.height/r.width;
+  const mx=1350-vb.w,my=900-vb.h;vb.x=mx<-150?(mx-150)/2:cl(vb.x,-150,mx);vb.y=my<-100?(my-100)/2:cl(vb.y,-100,my);svg.setAttribute("viewBox",[vb.x,vb.y,vb.w,vb.h].map(v=>+v.toFixed(1)).join(" "))};
+ const reset=()=>{const r=svg.getBoundingClientRect();vb.w=r.width&&r.height?Math.max(1200,800*r.width/r.height):1200;vb.x=0;vb.y=0;vb.h=vb.w*2/3;apply()};
+ const zoom=(f,px,py)=>{px=px==null?.5:px;py=py==null?.5:py;const wx=vb.x+px*vb.w,wy=vb.y+py*vb.h,nw=cl(vb.w*f,300,1500),k=nw/vb.w;vb.w=nw;vb.h*=k;vb.x=wx-px*vb.w;vb.y=wy-py*vb.h;apply()};
+ const select=(id,focus)=>{document.querySelectorAll(".nd.sel").forEach(x=>x.classList.remove("sel"));const g=svg.querySelector('.nd[data-id="'+id+'"]');if(g){g.classList.add("sel");if(focus)g.focus()}showDetail(id)};
+ svg.addEventListener("pointerdown",e=>{if(e.button>0)return;drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y,id:e.pointerId};moved=false});
+ svg.addEventListener("pointermove",e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!moved){if(Math.hypot(dx,dy)<5)return;moved=true;try{svg.setPointerCapture(drag.id)}catch(_){}}
+  const r=svg.getBoundingClientRect();vb.x=drag.vx-dx*vb.w/(r.width||vb.w);vb.y=drag.vy-dy*vb.h/(r.height||vb.h);apply()});
+ const end=()=>{drag=null};svg.addEventListener("pointerup",end);svg.addEventListener("pointercancel",end);
+ svg.addEventListener("click",e=>{if(moved)return;const g=e.target.closest(".nd");if(g)select(g.dataset.id)});
+ svg.addEventListener("wheel",e=>{e.preventDefault();const r=svg.getBoundingClientRect();zoom(e.deltaY<0?.88:1.14,(e.clientX-r.left)/(r.width||1),(e.clientY-r.top)/(r.height||1))},{passive:false});
+ svg.addEventListener("keydown",e=>{const g=e.target.closest&&e.target.closest(".nd");if(g&&(e.key==="Enter"||e.key===" ")){e.preventDefault();select(g.dataset.id);return}
+  const s=vb.w*.08,k={ArrowLeft:[-s,0],ArrowRight:[s,0],ArrowUp:[0,-s],ArrowDown:[0,s]}[e.key];if(k){e.preventDefault();vb.x+=k[0];vb.y+=k[1];apply()}else if(e.key==="+"||e.key==="="){zoom(.8)}else if(e.key==="-"){zoom(1.25)}else if(e.key==="0"){reset()}});
+ $("zi").onclick=()=>zoom(.8);$("zo").onclick=()=>zoom(1.25);$("zr").onclick=reset;
+ const hay=n=>[n.id,(n.label||[]).join(" "),n.status,n.parent||"",...FIELDS.map(k=>(n.d||{})[k]||"")].join(" ").toLowerCase();
+ const search=()=>{const q=$("q").value.trim().toLowerCase();
+  const hits=q?NODES.filter(n=>hay(n).includes(q)).sort((a,b)=>{
+   const score=n=>{const id=n.id.toLowerCase(),label=(n.label||[]).join(" ").toLowerCase();return (id===q||label===q?0:(id.startsWith(q)||label.startsWith(q)?1:(label.includes(q)?2:3)))+(n.parent?0:0.1)};
+   return score(a)-score(b)
+  }):[],hs=new Set(hits.map(n=>n.id));
+  svg.querySelectorAll(".nd").forEach(g=>{const id=g.dataset.id;g.classList.toggle("hit",!!q&&hs.has(id));g.classList.toggle("dim",!!q&&!hs.has(id)&&!hits.some(h=>h.parent===id))});
+  $("cnt").textContent=q?hits.length+(hits.length===1?" match":" matches"):"";
+  $("res").innerHTML=hits.length?hits.slice(0,30).map(n=>`<button type="button" data-id="${esc(n.id)}">${esc((n.label||[n.id]).join(" "))}</button>`).join(""):(q?`<span class="c" role="status">No components match “${esc(q)}”. Try a Brain name, capability, or service.</span>`:"")};
+ $("q").addEventListener("input",search);$("q").addEventListener("keydown",e=>{if(e.key==="Escape"){$("q").value="";search()}else if(e.key==="Enter"){const b=$("res").querySelector("button");if(b)select(b.dataset.id,true)}});
+ $("qc").onclick=()=>{$("q").value="";search();$("q").focus()};
+ $("res").addEventListener("click",e=>{const b=e.target.closest("button");if(b)select(b.dataset.id,true)});
+ reset();window.addEventListener("resize",apply)}
+
+const fl=a=>`<div class="fl">${a.map(x=>`<span>${x}</span>`).join("<i>→</i>")}</div>`,
+ cards=a=>`<div class="g">${a.map(x=>`<div class="c"><h3>${x[0]}</h3>${Array.isArray(x[1])?`<ul>${x[1].map(y=>`<li>${y}</li>`).join("")}</ul>`:`<p>${x[1]}</p>`}</div>`).join("")}</div>`,
+ tbl=(h,r)=>`<table><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr>${r.map(x=>`<tr>${x.map(y=>`<td>${y}</td>`).join("")}</tr>`).join("")}</table>`;
+const T=[bird,
+()=>`<h2>Content production pipeline</h2><p>The existing LangGraph pipeline keeps orchestrating production. It calls the Brain platform at three points and sends results back after publishing.</p>`+fl(["Trend discovery","<b>Rank topics (Coordinator, Brain Runtime)</b>","Research and plan","<b>Fetch learned guidance</b>","Script","Voice","Thumbnail","Video","Review","Publish and schedule","<b>Record video ID and features</b>","<b>Analytics and comments ingested</b>"])+cards([["Before topic selection","Planner sends candidates and channel context. Gets ranked topics, evidence, confidence and the Brain versions used."],["Before script generation","Hook types, structures, duration ranges, demand and known uncertainties. Guidance, not rigid rules."],["After publishing and comments","Video features are recorded, metrics and comment signals arrive asynchronously and update learning."],["If Brains are unavailable","Configured fallback to the baseline Planner. Every recommendation records whether it came from a Brain, a partial result or the baseline."]]),
+()=>`<h2>Brain registry and lifecycle</h2><div class="note">A Brain is an independent, versioned asset. A channel attachment is a separate relationship. The Registry is the catalogue, not the Brain itself.</div><div class="g"><div class="c"><h3>Brain (registry record) <span class="b bP">Proposed</span></h3><ul><li>Brain ID, name, type</li><li>Owner and workspace</li><li>Version, capabilities, status</li><li>Created and updated timestamps</li><li>Artifact references, evaluation status</li></ul></div><div class="c"><h3>Attachment (channel relationship) <span class="b bP">Proposed</span></h3><ul><li>Attachment ID, Brain ID, channel ID</li><li>Role: primary, supporting, experimental, shadow</li><li>Enabled status, configuration</li><li>Attached version or version policy</li><li>Created and updated timestamps</li></ul></div></div>`+tbl(["Operation","What happens","Learned knowledge"],[["Create / Version","New Brain identity or new immutable version","Kept"],["Attach","Permission and compatibility checks, then activate after validation","Kept"],["Detach","Stop new work, finish or cancel in-flight jobs, mark detached","Kept, still searchable"],["Disable","Temporarily blocks execution","Kept"],["Replace","Validate, optional shadow run, atomic switch, rollback path","Old version kept"],["Clone","New identity from a snapshot. The user explicitly chooses what state is copied. Credentials and private comments are never inherited","Copied selectively"],["Archive","Out of normal selection, retained per policy","Retained"],["Import / Export","Validated, checksummed packages. Import stays inactive until activated","Restored as permitted"],["Delete","Separate step: checks active attachments, dependent Brains, running jobs, retention rules and authorization, then asks for confirmation","Removed"]])+`<h3>Sharing and data isolation</h3>${cards(ISO)}<h3>Brain package <span class="b bP">Proposed</span></h3><p><code>manifest.json</code> <code>channel-profile.json</code> <code>learned-strategy.json</code> <code>topic-demand-snapshot.json</code> <code>decision-policy.json</code> <code>model-registry.json</code> <code>evaluation-report.json</code> <code>provenance.json</code> <code>model-artifacts/</code></p><p>The manifest carries schema versions, checksums, compatible runtimes, artifact metadata and restoration instructions. Exports never contain secrets, OAuth tokens or unauthorized raw comments.</p><h3>Search</h3><p>Structured filters (ID, name, owner, channel, type, status, version, dates) and semantic search (topics, requests, strategies, observations). Authorization is enforced first. Similarity is never authorization.</p>`,
+()=>`<h2>Parallel Brain execution</h2>${tbl(["Component","Responsibility"],RESP)}<p>Example: ranking topics for a cricket video.</p>`+fl(["LangGraph requests ranking","Coordinator resolves authorized attachments and immutable versions","Brain Runtime executes Cricket Performance, Cricket Demand and other Brains on the same candidates","Each Brain evaluates independently","Standard responses return","Aggregator applies versioned policy","Ranked result returns to LangGraph"])+cards([["Controls",["Concurrency limit per execution","Timeout per Brain","Partial results accepted","Failures isolated per Brain"]],["Fallback",["Deterministic fallback policy","Baseline Planner if too few Brains answer","Source of every recommendation logged"]],["Standard response",["execution_id, brain_id, brain_version_id","status, recommendations, confidence","evidence_refs, reason_codes, created_at"]],["Safety",["Confidence is not assumed comparable across models","Hard constraints stay outside ranking scores","Models never override safety, permissions or publishing rules"]]]),
+()=>`<h2>Learning and feedback loop</h2>`+fl(["YouTube data","Evidence ingestion","Queue and workers","Validation and deduplication","Comment classification","Topic extraction and clustering","Demand estimation and performance prediction","Reward and decision policy","Experiment tracking","Training and evaluation","Model registry and object storage","Approved version to Brain Runtime","Future recommendations"])+cards([["Experiment tracking",["Experiment ID and configuration","Candidates, recommendation shown, action actually taken","Brain and policy versions, observation window","Outcomes, reward, sample size, evaluation"]],["Data-quality checks",["Missing analytics","Duplicate observations","Sample size","Video age and channel baselines"]],["Background jobs",["Analytics polling, comment ingestion","Embeddings, cluster maintenance","Training and evaluation","Import/export, artifact validation","Idempotency keys, bounded retries, dead letters, job status records"]],["Demand estimator considers",["Unique requesters","Frequency of similar requests","Recency and momentum","Channel history, exposure and size","Spam and duplicate signals","Confidence and sample size"]],["Performance signals",["Views relative to channel baseline","Retention or watch time","Engagement and shares","Subscriber conversion where available"]],["Update cadence",["Comment classification: inference per comment","Demand, clusters, bandit: incremental","Supervised models: periodic retraining","Promotion only after evaluation"]],["Honest limits",["Reward config is versioned and set per channel","Predictions show confidence","Correlation is not causation","One request never triggers a video"]]]),
+()=>`<h2>Data and storage</h2>`+tbl(["Store","Holds","Status"],[["PostgreSQL","Users, workspaces, channels, Brains, versions, attachments, observations, decisions, experiments, audit logs, metadata","Proposed"],["Vector search","Embeddings of knowledge, comments, topics, learned patterns (pgvector or compatible)","Proposed"],["Object storage","Model artifacts, Brain snapshots, exports, evaluation reports","Proposed"],["Redis / job queue","Caching and async work: ingestion, embeddings, training, imports, exports, artifact validation. Job status stored in PostgreSQL","Optional"],["Secret Manager","API credentials and OAuth tokens","Proposed"],["YouTube APIs","Analytics, comments, publishing (subject to permissions)","External"],["GitHub","Source code, tests, migrations, configuration templates only","Not a database, not a secret store"]])+`<p>brain_versions rows are immutable. Activation is transactional. Foreign keys, unique constraints and idempotency keys protect integrity. Large artifacts live in object storage with references, metadata and checksums in PostgreSQL.</p>`,
+()=>`<h2>API overview</h2><div class="note">Proposed contracts. None of these endpoints are claimed to exist yet. Health uses <code>/v1/health</code> (liveness) and <code>/v1/ready</code> (readiness).</div><div class="g">`+[["Brains",["POST /v1/brains","GET /v1/brains","GET /v1/brains/{brain_id}","GET /v1/brains/{brain_id}/versions","POST /v1/brains/{brain_id}/clone","POST /v1/brains/{brain_id}/export","POST /v1/brains/import"]],["Attachments",["POST /v1/attachments","POST /v1/attachments/{attachment_id}/detach","POST /v1/attachments/{attachment_id}/replace","POST /v1/attachments/{attachment_id}/disable","GET /v1/channels/{channel_id}/brains"]],["Search and decisions",["POST /v1/channels/{channel_id}/brain/search","POST /v1/ideas/rank","GET /v1/decisions","GET /v1/decisions/{decision_id}"]],["Learning and experiments",["POST /v1/observations","POST /v1/comment-signals","POST /v1/experiments","GET /v1/experiments/{experiment_id}"]],["Models",["POST /v1/models/{model_version_id}/promote","POST /v1/models/{model_version_id}/rollback"]],["Jobs and health",["GET /v1/jobs/{job_id}","GET /v1/health","GET /v1/ready"]]].map(x=>`<div class="c"><h3>${x[0]}</h3><ul>${x[1].map(y=>`<li><code>${y}</code></li>`).join("")}</ul></div>`).join("")+`</div><p>Long-running work returns a job ID and is polled at <code>GET /v1/jobs/{job_id}</code>. Mutating requests accept an <code>Idempotency-Key</code> header. Every endpoint needs a schema, authorization, structured errors, tracing and rate limits.</p>`,
+()=>`<h2>Security and isolation</h2>`+cards([["Channel isolation","Observations, rewards, demand and decisions are scoped to a workspace and channel. Sharing a model never shares private audience history."],["Access control","Every request authenticated and authorized. Knowing a Brain or channel ID grants nothing."],["Search","Permissions filter before retrieval. Vector similarity is not authorization."],["Secrets","In the Secret Manager only. Never in GitHub, exports or logs."],["Imports and exports","Checksums, manifest validation, file scanning, dry run. Imported Brains stay inactive."],["Auditing","Lifecycle and access events logged. Deletes check active attachments, dependencies, running jobs, retention and authorization. Logs exclude secrets and unnecessary raw personal data."]]),
+()=>`<h2>Deployment and observability</h2>`+tbl(["Layer","Technology","Status"],[["Orchestration","LangGraph","Existing"],["Platform API","Express.js / Node.js","Proposed"],["Learning engine and Brain Runtime","Python / FastAPI (Runtime starts inside this service)","Proposed"],["Workers","Same codebase as the engine, separate process","Proposed"],["Database","PostgreSQL","Proposed"],["Semantic retrieval","pgvector or compatible vector database","Proposed"],["Job queue","Redis-backed queue or equivalent","Optional"],["Artifacts","Object storage","Proposed"],["Secrets","Secret Manager","Proposed"],["External","YouTube Data and Analytics APIs, subject to permissions","External"]])+`<div class="note">Start with three deployables: the Express API, the FastAPI service (engine plus Runtime) and a worker process. Keep modules separate in code. No Kafka, Kubernetes or extra databases without a measured need.</div><h3>Observability</h3>`+cards([["Metrics",["API latency and error rates","Per-Brain latency and timeouts","Partial-result and fallback rates","Queue backlog and processing delay"]],["Quality and cost",["Ingestion duplicates and failures","Model drift and evaluation results","Import/export failures","Inference and storage cost","Unauthorized requests"]],["Tracing and logs",["Correlation IDs across LangGraph, Coordinator, Runtime and learning jobs","Structured logs free of secrets and unnecessary raw personal data","Audit events for lifecycle and access"]]]),
+()=>`<h2>Implementation roadmap</h2><ol class="rm">`+["Fix and validate this architecture visualization","Define workspace and channel boundaries, identifiers, schemas and API contracts","Implement the Brain Registry, versioning and structured search","Implement lifecycle operations and audit logging","Implement the Brain Runtime with one simple working Brain","Integrate the Runtime and Coordinator with the existing LangGraph pipeline","Implement concurrency, timeouts, partial results and fallback behavior","Implement asynchronous analytics and comment ingestion with data-quality checks","Implement demand estimation, decision logging and initial ranking","Add experiments, contextual bandits and supervised prediction when enough data exists","Implement validated import/export, artifact checksums and rollback","Add observability, security hardening, backups and recovery tests"].map(x=>`<li>${x}</li>`).join("")+`</ol><p>Keep logical modules separate in code but deploy few services.</p>`,
+()=>`<div class="note">Reference text from the original architecture document. Where it differs from tabs 1-10 (for example the roadmap), the tabs are current.</div><div id="ref">${$("refT").innerHTML}</div>`];
+
+const tbEl=document.getElementById("tabs"),m=document.getElementById("m");
+TABS.forEach((t,i)=>{const b=document.createElement("button");b.textContent=t;b.id="tab-"+i;b.setAttribute("role","tab");b.setAttribute("aria-controls","panel");b.setAttribute("aria-selected","false");b.tabIndex=-1;b.onclick=()=>go(i);b.addEventListener("keydown",e=>{let j=i;if(e.key==="ArrowRight")j=(i+1)%TABS.length;else if(e.key==="ArrowLeft")j=(i-1+TABS.length)%TABS.length;else if(e.key==="Home")j=0;else if(e.key==="End")j=TABS.length-1;else return;e.preventDefault();go(j);tbEl.children[j].focus()});tbEl.appendChild(b)});
+m.setAttribute("role","tabpanel");m.id="panel";m.setAttribute("aria-label","Architecture section");
+function go(i){[...tbEl.children].forEach((b,j)=>{b.classList.toggle("on",i===j);b.setAttribute("aria-selected",String(i===j));b.tabIndex=i===j?0:-1});m.setAttribute("aria-labelledby","tab-"+i);m.innerHTML=T[i]();if(i===0)mountBird();try{history.replaceState(null,"","#"+i)}catch(_){}}
+go(Math.min(TABS.length-1,Math.max(0,parseInt(location.hash.slice(1))||0)));
+</script></body></html>
