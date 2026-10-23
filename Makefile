@@ -16,7 +16,7 @@ api:
 	cd services/api && npm start
 
 engine:
-	cd services/engine && . .venv/bin/activate && uvicorn app.main:app --port $${ENGINE_PORT:-8000} --reload
+	cd services/engine && . .venv/bin/activate && python -m uvicorn app.main:app --port $${ENGINE_PORT:-8001} --reload
 
 test:
 	cd services/api && npm test
@@ -24,4 +24,4 @@ test:
 check:        ## hit health/ready on both services
 	curl -s localhost:3000/v1/health; echo
 	curl -s localhost:3000/v1/ready; echo
-	curl -s localhost:8000/v1/ready; echo
+	curl -s localhost:8001/v1/ready; echo
