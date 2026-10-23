@@ -1,0 +1,68 @@
+openapi: 3.1.0
+info:
+  title: AI CarryON Brain Platform API
+  version: 0.1.0
+  description: Proposed contracts. Only /v1/health and /v1/ready are implemented in Phase 1.
+servers: [{url: http://localhost:3000}]
+components:
+  parameters:
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: false, schema: {type: string}}
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties: {code: {type: string}, message: {type: string}, correlation_id: {type: string}}
+    Job:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: {type: string, format: uuid}
+        status: {enum: [queued, running, succeeded, failed, dead]}
+    Brain:
+      type: object
+      required: [brain_id, workspace_id, name, brain_type, status]
+      properties:
+        brain_id: {type: string, format: uuid}
+        workspace_id: {type: string, format: uuid}
+        name: {type: string}
+        brain_type: {type: string}
+        status: {enum: [draft, active, disabled, archived, deleted]}
+    Attachment:
+      type: object
+      required: [attachment_id, brain_id, channel_id, role, status]
+      properties:
+        attachment_id: {type: string, format: uuid}
+        brain_id: {type: string, format: uuid}
+        channel_id: {type: string, format: uuid}
+        role: {enum: [primary, supporting, experimental, shadow]}
+        status: {enum: [pending, active, disabled, detached]}
+paths:
+  /v1/health: {get: {summary: Liveness, responses: {"200": {description: ok}}}}
+  /v1/ready: {get: {summary: Readiness, responses: {"200": {description: ready}, "503": {description: not ready}}}}
+  /v1/brains:
+    get: {summary: List brains, responses: {"200": {description: ok}}}
+    post:
+      summary: Create brain
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      responses: {"201": {description: created}}
+  /v1/brains/{brain_id}: {get: {summary: Get brain, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/brains/{brain_id}/versions: {get: {summary: List versions, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/brains/{brain_id}/clone: {post: {summary: Clone brain, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"202": {description: job accepted}}}}
+  /v1/brains/{brain_id}/export: {post: {summary: Export package, parameters: [{name: brain_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"202": {description: job accepted}}}}
+  /v1/brains/import: {post: {summary: Import package (inactive until activated), responses: {"202": {description: job accepted}}}}
+  /v1/attachments: {post: {summary: Attach brain to channel, parameters: [{$ref: "#/components/parameters/IdempotencyKey"}], responses: {"201": {description: created}}}}
+  /v1/attachments/{attachment_id}/detach: {post: {summary: Detach, parameters: [{name: attachment_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/attachments/{attachment_id}/replace: {post: {summary: Replace version, parameters: [{name: attachment_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/attachments/{attachment_id}/disable: {post: {summary: Disable, parameters: [{name: attachment_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/channels/{channel_id}/brains: {get: {summary: Brains on a channel, parameters: [{name: channel_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/channels/{channel_id}/brain/search: {post: {summary: Search brain knowledge (authorize first), parameters: [{name: channel_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/ideas/rank: {post: {summary: Rank candidate topics, responses: {"200": {description: ranked result with brain versions used and fallback source}}}}
+  /v1/decisions: {get: {summary: List decisions, responses: {"200": {description: ok}}}}
+  /v1/decisions/{decision_id}: {get: {summary: Get decision, parameters: [{name: decision_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/observations: {post: {summary: Record observation, parameters: [{$ref: "#/components/parameters/IdempotencyKey"}], responses: {"202": {description: accepted}}}}
+  /v1/comment-signals: {post: {summary: Ingest comment signals, parameters: [{$ref: "#/components/parameters/IdempotencyKey"}], responses: {"202": {description: accepted}}}}
+  /v1/experiments: {post: {summary: Create experiment, responses: {"201": {description: created}}}}
+  /v1/experiments/{experiment_id}: {get: {summary: Get experiment, parameters: [{name: experiment_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/models/{model_version_id}/promote: {post: {summary: Promote model, parameters: [{name: model_version_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/models/{model_version_id}/rollback: {post: {summary: Rollback model, parameters: [{name: model_version_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
+  /v1/jobs/{job_id}: {get: {summary: Job status, parameters: [{name: job_id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok}}}}
