@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate api engine test check
+.PHONY: setup up down migrate api engine test test-api test-engine check
 
 setup:        ## one-time: .env, node deps, python venv
 	./scripts/setup.sh
@@ -18,8 +18,13 @@ api:
 engine:
 	cd services/engine && . .venv/bin/activate && python -m uvicorn app.main:app --port $${ENGINE_PORT:-8001} --reload
 
-test:
+test: test-api test-engine
+
+test-api:
 	cd services/api && npm test
+
+test-engine:
+	cd services/engine && . .venv/bin/activate && python -m pytest -q
 
 check:        ## hit health/ready on both services
 	curl -s localhost:3000/v1/health; echo

@@ -17,6 +17,6 @@ need psql "brew install libpq && brew link --force libpq"
 cd services/engine
 [ -d .venv ] || python3 -m venv .venv
 . .venv/bin/activate
-pip install -q -r requirements.txt
+pip install -q -r requirements-dev.txt
 echo
 echo "done. next:  make up && make migrate && make api   (engine: make engine)"
