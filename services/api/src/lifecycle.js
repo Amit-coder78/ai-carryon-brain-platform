@@ -7,6 +7,7 @@ import { audit } from "./audit.js";
 import { HttpError, badRequest, notFound, conflict, unprocessable, requireUuid, requireString } from "./errors.js";
 import { context, idempotent, wrap } from "./registry.js";
 import { buildPackage, inspectPackage, findSecrets, MAX_VERSIONS } from "./package.js";
+import { NO_SIGNING, signPackage, checkSignature } from "./signing.js";
 
 const LIVE = ["pending", "active", "disabled"];
 const NOT_COPIED = ["attachments", "audit history", "decision history", "evaluation status", "credentials"];
@@ -14,8 +15,24 @@ const NOT_COPIED = ["attachments", "audit history", "decision history", "evaluat
 // Best-effort audit for refusals: it runs after the transaction rolled back, and must never hide the real error.
 const auditRefusal = (pool, ctx, action, detail) => audit(pool, ctx, action, "brain", null, detail).catch(() => {});
 
-export function lifecycleRouter(pool) {
+export function lifecycleRouter(pool, signing = NO_SIGNING) {
   const r = express.Router();
+
+  // The package checks plus the signature check, last. A package that fails an earlier check is not looked at for
+  // a signature; a signature that is present but wrong refuses the import whatever the policy says.
+  function inspectSigned(pkg) {
+    const report = inspectPackage(pkg);
+    const sig = report.valid ? checkSignature(pkg, signing) : { name: "signature", status: "skipped", result: null, problems: [], signer: null };
+    report.checks.push(sig);
+    if (sig.status === "failed") { report.valid = false; report.brain = null; }
+    return { report, signer: sig.signer };
+  }
+
+  // What this registry can say about signing, for people who need to hand a key id to a peer. No secrets.
+  r.get("/signing", (_req, res) => res.json({
+    can_sign: !!signing.signer, key_id: signing.signer?.keyId ?? null, public_key: signing.signer?.publicKey ?? null,
+    require_signature: signing.require, trusted_key_ids: [...signing.trustedKeys].sort(),
+  }));
 
   async function loadBrain(c, ctx, id, lock) {
     requireUuid(id, "brain_id");
@@ -190,14 +207,15 @@ export function lifecycleRouter(pool) {
         const all = await versionsOf(c, brain.brain_id);
         if (mode === "all" && all.length > MAX_VERSIONS) throw badRequest(`brain has ${all.length} versions; a package holds at most ${MAX_VERSIONS}. Use versions: "latest"`);
         const picked = mode === "latest" ? all.slice(-1) : all;
-        const pkg = buildPackage(brain, picked, { actor: ctx.actor });
+        const built = buildPackage(brain, picked, { actor: ctx.actor });
+        const pkg = signing.signer ? signPackage(built, signing.signer) : built;
         const secrets = findSecrets(pkg.files, "files");
         if (secrets.length) throw unprocessable("export_blocked", "export refused: the Brain contains something that looks like a secret", { paths: secrets });
         const { rows } = await c.query(
           `INSERT INTO brain_exports (workspace_id, brain_id, package_sha256, versions, manifest, created_by)
            VALUES ($1,$2,$3,$4,$5,$6) RETURNING export_id`,
           [ctx.workspaceId, brain.brain_id, pkg.package_sha256, picked.map((v) => v.version), JSON.stringify(pkg.manifest), ctx.actor]);
-        await audit(c, ctx, "brain.export", "brain", brain.brain_id, { export_id: rows[0].export_id, package_sha256: pkg.package_sha256, versions: picked.length });
+        await audit(c, ctx, "brain.export", "brain", brain.brain_id, { export_id: rows[0].export_id, package_sha256: pkg.package_sha256, versions: picked.length, signed_by: pkg.signature?.key_id ?? null });
         return { status: 200, body: { export_id: rows[0].export_id, package: pkg } };
       }));
     } catch (e) {
@@ -218,7 +236,7 @@ export function lifecycleRouter(pool) {
     const given = req.body.name !== undefined ? requireString(req.body.name, "name") : null;
     await requireWorkspace(pool, ctx);
 
-    const report = inspectPackage(req.body.package);
+    const { report, signer } = inspectSigned(req.body.package);
     if (!report.valid) {
       await auditRefusal(pool, ctx, "brain.import.rejected", { dry_run: dry, failed: report.checks.filter((k) => k.status === "failed") });
       throw unprocessable("invalid_package", "package failed validation; nothing was created", { checks: report.checks });
@@ -240,7 +258,7 @@ export function lifecycleRouter(pool) {
         const src = report.brain;
         const brain = await insertBrain(c, ctx, {
           name, brainType: src.brain_type,
-          origin: { kind: "import", package_sha256: req.body.package.package_sha256, source_brain_id: src.source_brain_id, source_versions: src.versions.map((v) => v.version) },
+          origin: { kind: "import", package_sha256: req.body.package.package_sha256, source_brain_id: src.source_brain_id, source_versions: src.versions.map((v) => v.version), ...(signer ? { signature: signer } : {}) },
         });
         const versions = await insertVersions(c, brain.brain_id, src.versions);
         // Health check, still inside the transaction: if anything is off, the whole import rolls back.
@@ -251,7 +269,7 @@ export function lifecycleRouter(pool) {
            FROM brain_versions WHERE brain_id=$1`, [brain.brain_id])).rows[0];
         const ok = h.n === src.versions.length && (h.n === 0 || (h.lo === 1 && h.hi === h.n)) && h.att === 0 && h.status === "draft";
         if (!ok) throw new HttpError(500, "import_health_check_failed", "imported Brain failed its health check; nothing was created");
-        await audit(c, ctx, "brain.import", "brain", brain.brain_id, { package_sha256: req.body.package.package_sha256, versions: versions.length, source_brain_id: src.source_brain_id });
+        await audit(c, ctx, "brain.import", "brain", brain.brain_id, { package_sha256: req.body.package.package_sha256, versions: versions.length, source_brain_id: src.source_brain_id, signature: signer });
         return { status: 201, body: { brain, versions, checks: report.checks, note: "Imported Brain is inactive (draft). Activate it or attach it to a channel to use it." } };
       }));
     } catch (e) {
@@ -285,7 +303,7 @@ export function lifecycleRouter(pool) {
     await requireWorkspace(pool, ctx);
     const target = await loadBrain(pool, ctx, req.params.brain_id);   // 404 for another workspace's Brain, before anything is read
 
-    const report = inspectPackage(req.body.package);
+    const { report, signer } = inspectSigned(req.body.package);
     if (!report.valid) {
       await audit(pool, ctx, "brain.version.import.rejected", "brain", target.brain_id, { dry_run: dry, failed: report.checks.filter((k) => k.status === "failed") }).catch(() => {});
       throw unprocessable("invalid_package", "package failed validation; nothing was added", { checks: report.checks });
@@ -327,7 +345,7 @@ export function lifecycleRouter(pool) {
         const touched = (await c.query(`UPDATE brains SET updated_at=now() WHERE brain_id=$1 RETURNING *`, [brain.brain_id])).rows[0];
         await audit(c, ctx, "brain.version.import", "brain", brain.brain_id, {
           package_sha256: sha, source_brain_id: src.source_brain_id,
-          source_versions: src.versions.map((v) => v.version), created_versions: added,
+          source_versions: src.versions.map((v) => v.version), created_versions: added, signature: signer,
         });
         return { status: 201, body: {
           brain: touched, versions, checks: report.checks,

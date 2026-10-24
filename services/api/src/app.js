@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import { registryRouter, errorHandler } from "./registry.js";
 import { signalsRouter } from "./signals.js";
 import { lifecycleRouter } from "./lifecycle.js";
+import { NO_SIGNING } from "./signing.js";
 
-export function createApp({ checkDb, pool } = {}) {
+export function createApp({ checkDb, pool, signing = NO_SIGNING } = {}) {
   const app = express();
   app.use((req, res, next) => {
     req.correlationId = req.get("x-correlation-id") || randomUUID();
@@ -23,7 +24,7 @@ export function createApp({ checkDb, pool } = {}) {
   });
   if (pool) {
     app.use("/v1", registryRouter(pool));
-    app.use("/v1", lifecycleRouter(pool));
+    app.use("/v1", lifecycleRouter(pool, signing));
     app.use("/v1", signalsRouter(pool));
   }
   app.use((req, res) => res.status(404).json({ code: "not_found", message: "no such route", correlation_id: req.correlationId }));
