@@ -4,6 +4,20 @@ A modular AI Brain platform for AI CarryON, enabling channel-specific intelligen
 
 Architecture: open `docs/architecture/index.html` in a browser.
 
+## Phase 7: Lifecycle and portable packages (roadmap steps 4 and 11)
+
+Code: `services/api/src/lifecycle.js` (routes), `services/api/src/package.js` (package format, checksums, secret scan), migration `0004_lifecycle_packages.sql`. Demo: `scripts/demo_phase7.sh`.
+
+- **Clone** `POST /v1/brains/{id}/clone` `{name?, versions?: latest|all|none}`. New identity, created as `draft`, versions renumbered from 1 and `unevaluated`, `origin` records the source. Never copied: attachments, audit and decision history, credentials.
+- **Archive / unarchive** `POST /v1/brains/{id}/archive` `{detach_attachments?}`. Refused with the list of bindings while the Brain is attached, unless `detach_attachments: true` (then they are detached in the same transaction). Unarchive never re-binds a channel. The engine only runs `active` Brains, so archiving takes effect immediately and the channel falls back to `baseline_fallback`.
+- **Delete** `DELETE /v1/brains/{id}` is a soft delete, allowed only for `draft` or `archived` Brains with no live attachments (409 lists the blockers). Versions, audit rows and decision records stay readable; the name becomes reusable. `GET /v1/brains/{id}/dependencies` shows bindings, clones, exports and decision records, and whether archive and delete are allowed. Clones and past exports are history, not blockers.
+- **Activate** `POST /v1/brains/{id}/activate` (draft to active). Attaching a draft Brain does the same, so a cloned or imported Brain can never sit attached but silently idle. Attach, archive and delete now take the same row lock on the Brain, so a Brain cannot be archived while a binding is being added.
+- **Export** `POST /v1/brains/{id}/export` `{versions?: all|latest}` returns `{export_id, package}`. The package is `{manifest, files, package_sha256}`: `brain.json` (name, type, versions) and `provenance.json`, each listed in the manifest with sha256 and size, plus a seal over the manifest. Registry data only: no channel bindings, no workspace ids, no model artifacts. Output is refused with `422 export_blocked` (field paths only, never the value) if anything looks like a secret.
+- **Import** `POST /v1/brains/import` `{package, name?, dry_run?}` runs the doc's order: structure, checksums, compatibility (package schema version 1), secret scan, then a dry-run report or a real import. A real import is one transaction with a health check at the end, so it is all or nothing. The new Brain is `draft` until activated or attached. Rejections and dry runs are audited (`brain.import.rejected`, `brain.import.dry_run`).
+- Everything is synchronous (no job table yet), so `/clone`, `/export` and `/import` return 201/200 instead of the 202 job the Phase 1 contract sketched. Bodies are capped at 1 MB (413).
+
+Not in this phase, on purpose: package **signatures** (checksums detect damage or editing, but anyone can build a valid package, so they do not prove who made it), model artifacts and learned state in packages (they do not exist yet), importing as a new version of an existing Brain (import always creates a Brain), hard purge and retention timers, running-job checks (no jobs yet), permissions and rate limits. The secret scan is a heuristic over key names and well-known token shapes, not a guarantee.
+
 ## Phase 6: Demand estimation and initial ranking (roadmap step 9)
 
 - New Brain type `demand` (`services/engine/app/runtime/demand.py`, estimator `demand-v1`). Attach it like the heuristic Brain (`brain_type: "demand"`); it fuses with other Brains through the existing `rrf-v1` policy.

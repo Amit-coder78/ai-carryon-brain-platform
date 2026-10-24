@@ -109,9 +109,9 @@ export function registryRouter(pool) {
     res.json({ items: rows, limit, offset });
   }));
 
-  async function loadBrain(c, ctx, id) {
+  async function loadBrain(c, ctx, id, lock = false) {
     requireUuid(id, "brain_id");
-    const { rows } = await c.query(`SELECT * FROM brains WHERE brain_id=$1 AND workspace_id=$2 AND status <> 'deleted'`, [id, ctx.workspaceId]);
+    const { rows } = await c.query(`SELECT * FROM brains WHERE brain_id=$1 AND workspace_id=$2 AND status <> 'deleted' ${lock ? "FOR UPDATE" : ""}`, [id, ctx.workspaceId]);
     if (!rows.length) throw notFound("brain not found"); // same answer for "exists in another workspace"
     return rows[0];
   }
@@ -175,7 +175,8 @@ export function registryRouter(pool) {
     const role = req.body.role ?? "supporting";
     if (!ROLES.includes(role)) throw badRequest(`role must be one of ${ROLES.join(", ")}`);
     const out = await tx(pool, (c) => idempotent(c, ctx, req, async () => {
-      const brain = await loadBrain(c, ctx, brain_id);
+      // Locked: archive/delete take the same lock, so a Brain can't be archived while a binding is being added.
+      const brain = await loadBrain(c, ctx, brain_id, true);
       if (!["active", "draft"].includes(brain.status)) throw conflict(`brain is ${brain.status}`);
       const ch = await c.query(`SELECT 1 FROM channels WHERE channel_id=$1 AND workspace_id=$2`, [channel_id, ctx.workspaceId]);
       if (!ch.rowCount) throw notFound("channel not found");
@@ -186,6 +187,11 @@ export function registryRouter(pool) {
            VALUES ($1,$2,$3,true,'active',$4,$5) RETURNING *`,
           [brain_id, channel_id, role, brain_version_id, JSON.stringify(req.body.config ?? {})]);
         await audit(c, ctx, "attachment.create", "attachment", rows[0].attachment_id, { brain_id, channel_id, role });
+        // Only active Brains run. A draft Brain (cloned or imported) becomes active when it is attached, never silently idle.
+        if (brain.status === "draft") {
+          await c.query(`UPDATE brains SET status='active', updated_at=now() WHERE brain_id=$1`, [brain_id]);
+          await audit(c, ctx, "brain.activate", "brain", brain_id, { via: "attach" });
+        }
         return { status: 201, body: rows[0] };
       } catch (e) {
         if (e.constraint === "one_primary_per_channel") throw conflict("channel already has an active primary brain");
@@ -255,8 +261,11 @@ export function registryRouter(pool) {
 }
 
 export function errorHandler(err, req, res, _next) {
-  if (err instanceof HttpError) return res.status(err.status).json({ code: err.code, message: err.message, correlation_id: req.correlationId });
+  if (err instanceof HttpError) {
+    return res.status(err.status).json({ code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}), correlation_id: req.correlationId });
+  }
   if (err.type === "entity.parse.failed") return res.status(400).json({ code: "bad_request", message: "invalid JSON", correlation_id: req.correlationId });
+  if (err.type === "entity.too.large") return res.status(413).json({ code: "too_large", message: "request body is larger than 1 MB", correlation_id: req.correlationId });
   console.error(JSON.stringify({ level: "error", correlation_id: req.correlationId, message: err.message }));
   res.status(500).json({ code: "internal", message: "internal error", correlation_id: req.correlationId });
 }
