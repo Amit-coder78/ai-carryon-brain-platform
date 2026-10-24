@@ -1,121 +1,350 @@
-# ai-carryon-brain-platform
+<div align="center">
 
-A modular AI Brain platform for AI CarryON, enabling channel-specific intelligence, versioning, orchestration, and continuous learning.
+# AI CarryON
 
-Architecture: open `docs/architecture/index.html` in a browser.
+### Autonomous multi-channel YouTube Shorts platform
 
-## Phase 7: Lifecycle and portable packages (roadmap steps 4 and 11)
+Finds trending topics, researches them, writes scripts, produces voiceovers, renders videos, and uploads to YouTube with no human in the loop, then learns from how each video performs.
 
-Code: `services/api/src/lifecycle.js` (routes), `services/api/src/package.js` (package format, checksums, secret scan), migration `0004_lifecycle_packages.sql`. Demo: `scripts/demo_phase7.sh`.
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-scheduled%20pipelines-2088FF?logo=githubactions&logoColor=white)
+![Postgres](https://img.shields.io/badge/Supabase-Postgres-3ECF8E?logo=supabase&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-dashboard-FF4B4B?logo=streamlit&logoColor=white)
+![LLM](https://img.shields.io/badge/LLM-Groq%20%2B%20Gemini-8A2BE2)
 
-- **Clone** `POST /v1/brains/{id}/clone` `{name?, versions?: latest|all|none}`. New identity, created as `draft`, versions renumbered from 1 and `unevaluated`, `origin` records the source. Never copied: attachments, audit and decision history, credentials.
-- **Archive / unarchive** `POST /v1/brains/{id}/archive` `{detach_attachments?}`. Refused with the list of bindings while the Brain is attached, unless `detach_attachments: true` (then they are detached in the same transaction). Unarchive never re-binds a channel. The engine only runs `active` Brains, so archiving takes effect immediately and the channel falls back to `baseline_fallback`.
-- **Delete** `DELETE /v1/brains/{id}` is a soft delete, allowed only for `draft` or `archived` Brains with no live attachments (409 lists the blockers). Versions, audit rows and decision records stay readable; the name becomes reusable. `GET /v1/brains/{id}/dependencies` shows bindings, clones, exports and decision records, and whether archive and delete are allowed. Clones and past exports are history, not blockers.
-- **Activate** `POST /v1/brains/{id}/activate` (draft to active). Attaching a draft Brain does the same, so a cloned or imported Brain can never sit attached but silently idle. Attach, archive and delete now take the same row lock on the Brain, so a Brain cannot be archived while a binding is being added.
-- **Export** `POST /v1/brains/{id}/export` `{versions?: all|latest}` returns `{export_id, package}`. The package is `{manifest, files, package_sha256}`: `brain.json` (name, type, versions) and `provenance.json`, each listed in the manifest with sha256 and size, plus a seal over the manifest. Registry data only: no channel bindings, no workspace ids, no model artifacts. Output is refused with `422 export_blocked` (field paths only, never the value) if anything looks like a secret.
-- **Import** `POST /v1/brains/import` `{package, name?, dry_run?}` runs the doc's order: structure, checksums, compatibility (package schema version 1), secret scan, then a dry-run report or a real import. A real import is one transaction with a health check at the end, so it is all or nothing. The new Brain is `draft` until activated or attached. Rejections and dry runs are audited (`brain.import.rejected`, `brain.import.dry_run`).
-- **Import versions into an existing Brain** `POST /v1/brains/{id}/versions/import` `{package, dry_run?}`. Same four checks as a normal import, then the package's versions are appended after the Brain's highest version number, in order, `unevaluated`, with their `params`. It changes nothing else: attachments stay pinned to the version they use (switch with replace), and a `draft` Brain stays `draft`. Refused with a 409 and nothing written if the package's `brain_type` differs from the Brain's, the Brain is archived, the package holds no versions, or this exact package was already imported into this Brain. Re-exporting a Brain gives a new package, so that is allowed. `dry_run` lists `would_add` (source version to new version) and any `blockers` instead of failing. All-or-nothing with the same health check as import; an `Idempotency-Key` replays the first answer. Audited as `brain.version.import`, with the package hash and the new version numbers.
-- **Package signatures (optional, Ed25519).** Checksums detect damage or editing, but anyone can build a valid package; a signature says who sealed it. Run `make signing-key`, then `export` the printed `BRAIN_SIGNING_KEY` in the shell that runs `make api`. With a key set, every export carries a `signature` block `{alg, key_id, public_key, value}`; without one, exports are unsigned as before. The signature covers `package_sha256` (which already seals the manifest and every file) and sits outside the sealed content, so old unsigned packages stay valid and signing changes no checksum. Imports (`/brains/import` and `/versions/import`) gain a fifth check, `signature`, reported as `result: unsigned | valid | invalid` and, when valid, `signer: {key_id, trusted}`. A signature that is present but wrong is always refused, even when signatures are optional. The key travels inside the package, so a valid signature only means "consistent"; **trust is a list you control**: `BRAIN_TRUSTED_KEYS` (comma-separated key ids; a registry always trusts its own key). Set `BRAIN_REQUIRE_SIGNATURE=1` to refuse unsigned packages and packages signed by an untrusted key. A valid signature is recorded on the imported Brain's `origin.signature` and in the audit log (`signature`; exports record `signed_by`). `GET /v1/signing` shows this registry's key id, public key, policy and trusted ids (never the private key). No migration and no new dependency (`node:crypto`). Keys are not rotated or revoked by the registry: remove a key id from `BRAIN_TRUSTED_KEYS` to stop trusting it. `scripts/demo_signing.sh` walks through it: signed export, import, a forger who re-seals every checksum, and strict mode (it starts its own strict API on :3010).
-- Everything is synchronous (no job table yet), so `/clone`, `/export` and `/import` return 201/200 instead of the 202 job the Phase 1 contract sketched. Bodies are capped at 1 MB (413).
+[Live dashboard](https://ai-carryon-tqndlmjbcfvtznagmef2ap.streamlit.app/Dashboard) |
+[Brain Platform backend](https://github.com/Amit-coder78/ai-carryon-brain-platform) |
+[Backend architecture](https://htmlpreview.github.io/?https://github.com/Amit-coder78/ai-carryon-brain-platform/blob/main/docs/architecture/index.html)
 
-Not in this phase, on purpose: model artifacts and learned state in packages (they do not exist yet), a trusted-key table per workspace (trust is process-wide config for now), key rotation and revocation lists, hard purge and retention timers, running-job checks (no jobs yet), permissions and rate limits. The secret scan is a heuristic over key names and well-known token shapes, not a guarantee.
+</div>
 
-## Phase 6: Demand estimation and initial ranking (roadmap step 9)
+---
 
-- New Brain type `demand` (`services/engine/app/runtime/demand.py`, estimator `demand-v1`). Attach it like the heuristic Brain (`brain_type: "demand"`); it fuses with other Brains through the existing `rrf-v1` policy.
-- **Distinct people, weighted by recency.** Each requester counts once, with a weight that halves every 14 days since their *latest* request. Fewer than 3 distinct requesters scores 0: one request never decides a topic.
-- **Uncertainty is explicit.** The score is a conservative lower bound (`n_eff - 1.28*sqrt(n_eff)`, saturating so 10 effective requesters ~ 0.37). Confidence is the estimate's relative precision (about 0.26 at 3 requesters, 0.60 at 10, 0.87 at 100), so small samples never look certain. Evidence refs carry `estimator:demand-v1` and the interval. If no candidate has enough demand the Brain abstains from fusion (Phase 4 rule).
-- **History fills `channel_baseline_ratio`** (it was always the neutral 1.0 before). From this channel's selected videos with a `views_24h` observation: baseline = median, topic ratio = mean of views/baseline over past videos with the *same* topic key. Needs 3+ videos, otherwise it stays neutral. Exact match only, no fuzzy guessing.
-- Two new optional candidate features: `recent_requesters` (null = unknown, flagged `recency_unknown`, never assumed fresh) and `history_videos`. Explicit caller features still win. No migration needed.
+## Overview
 
-Demo: `scripts/demo_phase6.sh` (needs `make api` and `make engine` running) shows fresh vs fading demand, one person counted once, and the Brain abstaining.
+AI CarryON runs **seven independent pipelines**, each with its own content source, audience, credentials, and schedule, all deployed as scheduled GitHub Actions workflows at zero hosting cost. Five are documented here as production channels; Finance and Horror have their own docs ([`FINANCE.md`](FINANCE.md), [`HORROR.md`](HORROR.md)).
 
-### Demand settings per Brain version
+| | |
+| --- | --- |
+| **Compute** | GitHub Actions cron workflows (stateless runs) |
+| **State** | Supabase Postgres, partitioned per channel |
+| **LLMs** | Groq `openai/gpt-oss-120b` primary, Gemini fallback, with circuit breakers and call budgets |
+| **Decision backend** | [ai-carryon-brain-platform](https://github.com/Amit-coder78/ai-carryon-brain-platform): versioned "Brains" that rank candidate topics |
+| **Voice** | Edge TTS, Sarvam AI (Hindi) |
+| **Media** | Pexels and Twitch clips, ffmpeg rendering |
+| **Dashboard** | Streamlit, reading the same Postgres database |
+| **Channels** | [English](https://www.youtube.com/@AIcarryONAI) / [Hindi](https://www.youtube.com/@AICarryONHindi) / [Cricket](https://www.youtube.com/@AICarryONSports) / [Gaming](https://www.youtube.com/@AICarryONGaming) |
 
-The demand Brain's half-life and minimum number of requesters can be set on each Brain version (`params` on `POST /v1/brains/{id}/versions`; migration `0005_version_params.sql`):
+### Highlights
 
+- **Fully autonomous**: topic discovery to YouTube upload, with learned peak-hour scheduling.
+- **Self-improving**: velocity tracking, saturation scoring, competitor benchmarking, and A/B title testing feed back into every run.
+- **Resilient by design**: provider fallback, per-channel API key isolation, resumable runs, and a backend that can never block a video if it fails.
+- **Zero-cost infrastructure**: migrated off paid hosting to scheduled workflows plus Postgres.
+
+## Contents
+
+[Channels](#channels-in-production) | [Pipeline](#what-each-pipeline-does) | [Architecture](#architecture) | [Brain Platform backend](#brain-platform-backend) | [Intelligence layer](#intelligence-layer-english-hindi-and-bhakti) | [Engineering highlights](#engineering-highlights) | [Local setup](#local-setup) | [Deployment](#deployment) | [Operational notes](#operational-notes) | [Hook engine](#hook-engine) | [Comment replies](#comment-reply-agent) | [Limitations](#known-limitations) | [Roadmap](#roadmap)
+
+---
+
+## Channels in Production
+
+| Channel | Audience / Niche | Content source | Voice | Workflow |
+| --- | --- | --- | --- | --- |
+| **English** ([@AIcarryONAI](https://www.youtube.com/@AIcarryONAI)) | US, Tech/AI | Trending-topic discovery + LLM research | Edge TTS | `english-scheduler.yml` (every 5h) |
+| **Hindi** ([@AICarryONHindi](https://www.youtube.com/@AICarryONHindi)) | India, experiment-style videos (chemical, physical and technology experiments from around the world) | LLM-generated trending topics, Hinglish scripts | Sarvam AI Bulbul, Edge TTS fallback | `hindi-scheduler.yml` (hourly check, adaptive, max 3 uploads/day) |
+| **Cricket** ([@AICarryONSports](https://www.youtube.com/@AICarryONCricket)) | Cricket news and match content | CricAPI match data + trending cricket topics | Edge TTS | `cricket-scheduler.yml` |
+| **Gaming** ([@AICarryONGaming](https://www.youtube.com/@AICarryONGaming)) | Gaming moments and trends | Twitch Helix Clips API (followed streamers + top clips by game category) | Edge TTS | `gaming-scheduler.yml` |
+| **Bhakti** | India, Hindi devotional Shorts (mythological stories, mantra meanings, festival significance) | Devotional topic pool + live trend check, LLM research, Pexels temple/diya/aarti footage, Freesound bhajan-style music | Sarvam AI (devotional pace); `BHAKTI_MODE=music_only` skips voice and captions | `bhakti-scheduler.yml` (hourly check, adaptive, up to 6 uploads/day) |
+
+The Hindi channel was pivoted from tech news to experiment-style videos after poor retention, to make content more visual and interactive.
+
+The Bhakti channel is the fifth pipeline and is documented in [`SETUP_BHAKTI.md`](SETUP_BHAKTI.md). It has two modes: `narrated` (the default: Hindi voiceover and captions over a ducked bhajan track) and `music_only` (bhajan only, no voice). It uses stock footage only, with no AI-generated deity imagery, and it reuses the English/Hindi intelligence layer (saturation, comparison, A/B titles, velocity).
+
+---
+
+## What Each Pipeline Does
+
+Every channel runs on its own schedule and, without human input:
+
+1. Checks whether the current hour matches a learned peak-engagement window (English/Hindi/Bhakti; falls back to safe defaults until enough data exists)
+2. Finds a trending topic, filtered to the channel's niche
+3. Checks topic saturation and skips topics that are already over-covered (English/Hindi/Bhakti)
+4. Benchmarks competitors on the same topic (English/Hindi/Bhakti)
+5. Researches the topic and writes a script tuned to the channel's length and style
+6. Generates three title variations using different psychological patterns, scores them, and picks a winner
+7. Writes the SEO description and hashtags
+8. Generates a voiceover and word-by-word captions
+9. Pulls background footage: topic-relevant Pexels video clips (English, Hindi, Cricket, Bhakti), or real Twitch clips downloaded with `yt-dlp` (Gaming)
+10. Renders the final video with ffmpeg
+11. Uploads to YouTube with full metadata
+12. Records view snapshots on a schedule for ongoing analytics
+
+### Pipeline (per channel)
+
+```mermaid
+flowchart TD
+    A["Adaptive hour check"] --> B["Trending topic (niche-filtered)"]
+    B --> BR["Brain ranking<br/>(optional, English)"]
+    BR --> C["Saturation check"]
+    C --> D["Competitor comparison"]
+    D --> E["Research (LLM) and script"]
+    E --> F["A/B title test and SEO"]
+    F --> G["Voiceover and captions"]
+    G --> H["Background footage<br/>(Pexels / Twitch clips)"]
+    H --> I["Render (ffmpeg)"]
+    I --> J["YouTube upload"]
+    J --> K["View snapshots to Postgres"]
+    K -. "learning loop" .-> A
 ```
-{"params": {"half_life_days": 7, "min_requesters": 5}}
+
+---
+
+## Architecture
+
+**Compute and scheduling.** Each channel is a GitHub Actions cron workflow (`.github/workflows/`). Runs are stateless, so all state lives in Postgres and all credentials in GitHub Secrets.
+
+**LLM routing.** Groq (`openai/gpt-oss-120b`) is the primary model, with Gemini (`gemini-3.5-flash`) as fallback. The English and Hindi routing layers (`model_invoke_agent_english.py`, `model_invoke_agent_hindi.py`) include circuit breakers and per-run call budgets so a provider outage or rate limit degrades gracefully instead of failing a run.
+
+**Data.** Supabase Postgres, accessed through the transaction pooler (port 6543), because GitHub Actions runners are IPv4-only and Supabase direct connections are IPv6-only. English, Hindi and Bhakti share one database, partitioned by a `channel` column so their learning never mixes. Cricket uses its own Supabase project for topic de-duplication.
+
+**Dashboard.** A Streamlit app on Streamlit Community Cloud reads the same Postgres database. Pages: Dashboard, Peak Hours, Schedule, Analytics, Comparison, and A/B Titles. The channel selector covers English, Hindi, and Cricket. The dashboard has no Bhakti tab yet; Bhakti data is stored in the shared Postgres database under `channel='bhakti'`.
+
+**Shared rendering.** Every channel reuses the same video renderer (`agents/video_agent.py`), so a fix or improvement there benefits every channel.
+
+### Repository Layout
+
+| Path | Contents |
+| --- | --- |
+| `agents/` | English pipeline agents and shared video, voice and caption agents (includes `brain_client.py` and `topic_selection.py`, the Brain platform client) |
+| `agents_hindi/` | Hindi (Hinglish) pipeline agents |
+| `agents_cricket/` | Cricket pipeline agents |
+| `agents_gaming/` | Gaming pipeline agents (Twitch client, clip finder, etc.) |
+| `agents_bhakti/` | Bhakti (Hindi devotional) pipeline agents |
+| `tests/` | Offline tests (comment engine, Brain topic selection, and more) |
+| `pages/` | Streamlit dashboard pages |
+| `scheduler*.py` | One scheduler per channel: `scheduler.py`, `scheduler_hindi.py`, `scheduler_cricket.py`, `scheduler_gaming.py`, `scheduler_bhakti.py` |
+| `app.py` | Streamlit entrypoint |
+| `.github/workflows/` | English, Hindi, Cricket, Gaming and Bhakti scheduler workflows |
+
+---
+
+## Brain Platform backend
+
+AI CarryON uses a separate repository, [**ai-carryon-brain-platform**](https://github.com/Amit-coder78/ai-carryon-brain-platform), as its **decision-making backend**. This repo (the pipeline) is the *client*; the Brain platform is the *service* that ranks candidate topics before a video is made.
+
+**Architecture of the backend:** [open the interactive diagram](https://htmlpreview.github.io/?https://github.com/Amit-coder78/ai-carryon-brain-platform/blob/main/docs/architecture/index.html)
+
+```mermaid
+flowchart LR
+    subgraph C["ai-carryon (pipeline)"]
+        S["scheduler.py"] --> T["topic_selection.py"] --> B["brain_client.py"]
+    end
+    subgraph P["ai-carryon-brain-platform (backend)"]
+        E["Engine (FastAPI)<br/>/v1/runtime/execute<br/>rank + fuse (rrf-v1)"]
+        R["Registry API + Postgres<br/>Brains, versions, decisions"]
+        E --- R
+    end
+    B -- "candidates" --> E
+    E -- "ranked list" --> B
 ```
 
-- `half_life_days`: number from 1 to 365 (default 14). `min_requesters`: integer from 1 to 1000 (default 3). Missing keys use the defaults, so every version created before this change behaves exactly as before. Unknown keys and out-of-range values are a 400. Other Brain types accept no params.
-- Versions are immutable, so changing a setting means a new version. The decision record already names the Brain version, so it also names the settings; the Brain's evidence refs show `param:half_life_days=...` and `param:min_requesters=...`.
-- Clone and export/import copy the settings with each version. Packages made before this change import fine (no params means defaults); a package with invalid params fails the compatibility check.
-- If the engine finds invalid params on a version, only that Brain fails (status `error`); the other Brains still rank.
-- A half-life only applies when the engine computed the recency from stored signals. If a caller sends its own `features` with `recent_requesters`, that value is used as given and the reason code `half_life_not_applied` is added. `min_requesters` always applies.
-- Ages are bucketed to the hour for this, which changes a weight by at most about 1.4% at the shortest half-life.
+### How the two repos connect
 
-Not in this phase: spam/bot detection (comment classification is upstream; this only guarantees one person counts once), audience-size normalisation (the registry doesn't store it yet), semantic topic matching (clusters), and learned weights. The saturation constant and uncertainty band are fixed in `demand.py` and versioned by the estimator name; half-life and minimum requesters are per-version settings (below).
+| Piece | Location |
+| --- | --- |
+| HTTP client for the engine | [`agents/brain_client.py`](agents/brain_client.py) |
+| Topic choice using the ranking | [`agents/topic_selection.py`](agents/topic_selection.py), called from `scheduler.py` |
+| Engine started inside the CI job | `.github/workflows/english-scheduler.yml` uses `Amit-coder78/ai-carryon-brain-platform/.github/actions/ci-engine@main` |
+| API contract both sides follow | [`contracts/openapi.yaml`](https://github.com/Amit-coder78/ai-carryon-brain-platform/blob/main/contracts/openapi.yaml) in the Brain platform repo |
 
-## Phase 5: Signals, features and decision records
+### What the Brain does for the pipeline
 
-- `POST /v1/comment-signals` (API :3000) stores demand signals: a salted hash of the commenter plus a normalized topic key, never comment text. The same person counts once however many times they comment.
-- `POST /v1/runtime/execute` now fills in missing candidate features from the last 30 days of `request` signals (exact topic-key match, per channel). Explicit `features` from the caller always win. Every execution writes a decision record and returns `decision_id`.
-- `GET /v1/decisions`, `GET /v1/decisions/{id}`, `POST /v1/decisions/{id}/selection` (pipeline reports what it used, once), `POST /v1/observations` (outcomes such as `views_24h`, linked to a decision).
-- The topic key is defined once in `contracts/topic-key-vectors.json` and tested in both services.
+1. The scheduler builds a shortlist of trending topics (topics posted in the last 24h are dropped first).
+2. It sends them to `POST /v1/runtime/execute` with signals per topic: freshness (`days_since_trend`) and viewer demand from `topic_requests` over 30 days (`unique_requesters` = distinct commenters via `author_channel_id`).
+3. The engine runs the channel's attached Brains, fuses their rankings, and returns the order plus a `decision_id`.
+4. The pipeline tries topics in Brain order; each must still pass the saturation check.
+5. Every Brain-assisted decision logs one `BRAIN_LOG {...}` line (source, execution id, policy version, Brain versions).
 
-## Phase 4: pipeline integration (client lives in ai-carryon)
+### Safe by default
 
-The `ai-carryon` pipeline (per-channel scheduler jobs on GitHub Actions) calls `POST /v1/runtime/execute` before choosing a topic (client: `agents/brain_client.py`, selection: `agents/topic_selection.py`, both in `ai-carryon`). Contract points this repo guarantees and tests (`services/engine/tests/test_api.py`, `test_runtime.py`):
+**Off unless configured; with nothing set there is no extra network call and behaviour is unchanged.** Any failure, a `baseline_fallback`, or a ranking with no preference (`no_signal`) falls back to the original selection. A Brain problem can never fail a video run.
 
-- Response carries `source` (`brains` | `partial` | `baseline_fallback`), `policy_version`, `execution_id`, `ranked`, and each Brain's `brain_id` / `brain_version_id` / `role` / `status`, so the pipeline can record exactly where a pick came from.
-- A Brain whose scores are all identical **abstains** from fusion (no alphabetical tie-break leaking in as a fake recommendation), and tied scores inside an informative Brain share a rank. Candidates nobody scored come back as `unscored` with `aggregate_score` 0.0 in the caller's order.
-- No attached Brain, wrong workspace, disabled attachment: `baseline_fallback`, never an error.
+### Enabling it (English channel)
 
-### Running the engine inside a GitHub Actions job (no hosting)
+Add a GitHub repository **variable** `BRAIN_ENABLED` = `true` (Settings > Secrets and variables > Actions > Variables). The English workflow then starts the engine inside the job, so there is nothing to host. Remove the variable (or set it to anything else) to switch it off. If the engine fails to start, the run continues without the Brain.
 
-`.github/actions/ci-engine` starts an ephemeral pgvector Postgres, migrates it, seeds one workspace + channel + active heuristic Brain, starts the engine on `127.0.0.1`, waits for `/v1/ready`, then exports `BRAIN_ENGINE_URL`, `BRAIN_WORKSPACE_ID` and `BRAIN_CHANNEL_ID_<CHANNEL>` to the later steps. Everything is discarded when the job ends (about 15 s of setup). The settings are published only after the engine is ready, so a failed start leaves the Brain switched off rather than half-configured.
+To use a separately hosted engine instead, leave `BRAIN_ENABLED` unset and set these yourself:
 
-```yaml
-- uses: Amit-coder78/ai-carryon-brain-platform/.github/actions/ci-engine@main
-  with: { channel: english }
-```
+| Variable | Purpose |
+| --- | --- |
+| `BRAIN_ENGINE_URL` | Engine base URL, reachable from the runner |
+| `BRAIN_WORKSPACE_ID` | Workspace uuid in the Brain registry (sent as `x-workspace-id`) |
+| `BRAIN_CHANNEL_ID_ENGLISH` | Registry channel uuid (`BRAIN_CHANNEL_ID_<CHANNEL>` for others) |
+| `BRAIN_ENABLED=0` | Kill switch in the environment |
 
-`scripts/ci_engine.sh` is the same logic for local use: `DATABASE_URL=... CHANNEL=english ./scripts/ci_engine.sh` prints the exports. Note the registry is re-created every run, so there is no history or audit trail across runs; use a hosted engine with a persistent database when you need that.
+Cost when enabled: one extra YouTube search call per run. Other channels can adopt it with `brain_ranked_topic("<channel>")` and `BRAIN_CHANNEL_ID_<CHANNEL>`.
+
+Tests (offline): `python -m unittest tests.test_brain_topic_selection -v`
+
+---
+
+## Intelligence Layer (English, Hindi and Bhakti)
+
+| Component | What it does |
+| --- | --- |
+| **Velocity and peak-hour detection** | Computes views gained per hour per video, aggregated by hour of day, to find the best upload windows |
+| **Saturation engine** | Scores topics 0-100 from recent competing video count and authority-channel coverage. Fails open if the YouTube API is unavailable |
+| **Comparison engine** | Benchmarks the top 10 competing videos (views, engagement, title length, duration) and feeds recommendations into script and SEO generation |
+| **A/B title testing** | Generates 3 titles from 8 psychological patterns, scores each on a 10-point rubric, and logs every test for pattern tracking |
+| **Adaptive scheduling**              | Scores every UTC hour from an audience-heatmap prior + recent view velocity + 24h views by upload hour (last 28 days), and uploads only in the best 6 hours; the prior can be updated via the DB meta key `audience_prior_ist_<channel>` |
+| **View tracking** | Hourly snapshots of views, likes, and comments per video |
+
+---
+
+## Engineering Highlights
+
+- **Moved off paid hosting to a zero-cost deployment.** English and Hindi were migrated from Railway (which began requiring a credit card) to GitHub Actions cron workflows. The SQLite store was replaced with Postgres so state survives across stateless runs. The gaming channel was built directly on the same pattern.
+- **Replaced the database layer.** The original per-feature JSON files became a single SQLite database and then Supabase Postgres, with an idempotent migration script and a timezone fix for mixed naive/aware timestamps that had silently broken velocity calculation.
+- **Survived a model deprecation.** When Groq retired `llama-3.3-70b-versatile`, roughly 25 hardcoded call sites across all channels were migrated to `openai/gpt-oss-120b`, and a retired Gemini model in the routing layer was replaced.
+- **Upgraded visuals from static to dynamic.** Ken-Burns still images were replaced with topic-relevant Pexels video clips for English and Hindi.
+- **Fixed silent audio truncation in Hindi TTS.** Sarvam splits long text into multiple WAV segments and only the first was being saved, cutting about 70% of each voiceover. Concatenating all segments fixed it, and script length was retuned to 110-130 words to stay under the 60-second Shorts limit.
+- **Built the gaming pipeline end to end.** Twitch OAuth app registration, Helix Clips API integration, per-clip download with `yt-dlp`, and a category filter that automatically excludes non-gameplay categories (Just Chatting, Music, ASMR, etc.) from top-clip discovery.
+- **Cricket state moved to Postgres.** De-duplication tracking was moved from a JSON file to Supabase so it survives ephemeral compute.
+
+---
+
+## Local Setup
 
 ```bash
-make test   # engine suite runs the DB-backed tests once `make up && make migrate` has run
+git clone https://github.com/Unknown183-a/ai-carryon.git
+cd ai-carryon
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Dashboard
+streamlit run app.py
+
+# Run a channel scheduler locally
+python scheduler.py           # English
+python scheduler_hindi.py     # Hindi
+python scheduler_cricket.py   # Cricket
+python scheduler_gaming.py    # Gaming
+python scheduler_bhakti.py    # Bhakti
 ```
 
-## Phase 3: Brain Runtime (engine, :8001)
+### Configuration
 
-`POST /v1/runtime/execute` (header `x-workspace-id`) takes `channel_id` + candidate topics, resolves that channel's active attachments (pinned immutable versions, same workspace), runs the Brains in parallel (per-Brain timeout, concurrency cap), fuses rankings with reciprocal-rank fusion (`rrf-v1`; Brain scores are not assumed comparable), and returns each Brain's standard response plus `source`: `brains`, `partial` or `baseline_fallback`. Shadow Brains run and are recorded but never affect the ranking. One Brain failing or timing out never fails the call. Starter Brain type: `heuristic` (set `brain_type` to `heuristic` when creating the Brain).
+| Variable | Purpose | Scope |
+| --- | --- | --- |
+| `DATABASE_URL` | Postgres connection (Supabase transaction pooler) | All |
+| `GROQ_API_KEY` | Primary LLM inference | All |
+| `GEMINI_API_KEY` | LLM fallback | All |
+| `PEXELS_API_KEY` | Background clips and images | English, Hindi, Cricket, Bhakti |
+| `YOUTUBE_API_KEY` | YouTube Data API (search, public stats) | All |
+| `YOUTUBE_TOKEN_B64`, `YOUTUBE_CLIENT_SECRETS_B64`, `YOUTUBE_ANALYTICS_TOKEN_B64` | English OAuth upload and analytics credentials | English |
+| `YOUTUBE_TOKEN_JSON` / `HINDI_TOKEN_JSON` | Hindi OAuth token (needs `youtube.upload`, `youtube.readonly` and `youtube.force-ssl` scopes) | Hindi |
+| `SARVAM_API_KEY` | Hindi native TTS | Hindi, Bhakti |
+| `BHAKTI_TOKEN_JSON` | Bhakti OAuth token (needs `youtube.upload`, `youtube.readonly` and `youtube.force-ssl`) | Bhakti |
+| `YOUTUBE_BHAKTI_CHANNEL_ID`, `BHAKTI_AUTHORITY_CHANNEL_IDS` | Own channel id and authority channels for saturation scoring | Bhakti |
+| `FREESOUND_API_KEY` | Bhajan-style background music | Bhakti |
+| `BHAKTI_MODE`, `BHAKTI_VIDEOS_PER_DAY` | `narrated` (default) or `music_only`; daily upload target (default 6) | Bhakti |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | Twitch Helix API | Gaming |
+| `YOUTUBE_GAMING_CLIENT_SECRETS_B64`, `YOUTUBE_GAMING_TOKEN_B64` | Gaming channel OAuth credentials | Gaming |
+| `APP_PASSWORD` | Streamlit dashboard login | Dashboard |
 
-```bash
-make test        # api (13) + engine (15)
+Cricket additionally needs a CricAPI key and its own YouTube credentials.
+
+---
+
+## Deployment
+
+All five pipelines deploy the same way: push to `main`, and the scheduled workflows in `.github/workflows/` pick up the new code on their next run. Secrets live in GitHub repository secrets. To trigger a run without waiting for the cron, use "Run workflow" on the relevant workflow in the Actions tab.
+
+---
+
+## Operational Notes
+
+- **YouTube API quota**: 10,000 units/day per Google Cloud project, and each upload costs about 1,650 units. The gaming channel uses its own Google Cloud project and OAuth client.
+- **API key isolation**: each channel workflow uses its own `GROQ_API_KEY_<CHANNEL>`, `GEMINI_API_KEY_<CHANNEL>` and `PEXELS_API_KEY_<CHANNEL>` secret (Hindi, Cricket and Bhakti also get `SARVAM_API_KEY_<CHANNEL>`). The old shared keys are passed as `*_API_KEY_SHARED`, and `key_fallback.py` retries a call with the shared key only on 429/401/403 (`KEY_FALLBACK=0` disables it). Tests: `python -m unittest tests.test_key_fallback -v`.
+- **OAuth tokens** can expire (`invalid_grant`). Re-authenticate locally and update the matching GitHub secret. A Hindi token with upload-only scope silently fails view tracking with a 403.
+- **Sarvam text limits**: long scripts come back as multiple audio chunks, so always concatenate every returned segment.
+- **Flow/Veo clips**: an optional manual mode for cinematic clips exists in the English and Hindi agents (`flow_prompt_agent.py`), but the automated pipelines use Pexels or Twitch footage. Real brand names in clip prompts can trigger Flow's policy filter.
+
+## Hook Engine
+
+Every Short can open on a topic-relevant visual hook (1-3s), chosen before the normal B-roll.
+
+```
+script -> story analysis + hook intent -> 3-5 queries -> Pexels (10-20 candidates)
+       -> score (relevance 40 / visual 25 / curiosity 20 / emotion 10 / continuity 5)
+       -> relevance >= 70% gate -> duplicate check -> best hook -> render first
 ```
 
-## Phase 2: Brain Registry API
+- Code: `agents/hook_engine.py` (shared core + per-channel profiles), `agents/hook_render.py` (renderer helper), `agents_gaming/gameplay_hook.py`. Pexels search goes through the existing client: `agents/video_clip_agent.py::search_hook_videos()`.
+- The hook **replaces** the first seconds of B-roll; total length, voice and caption timing are unchanged.
+- English, Hindi, Cricket, Bhakti use Pexels. Bhakti is restricted to reverent hook types and blocks dramatic/violent/deity terms. Gaming cuts a cold open from the real gameplay peak (vision-analysed, intensity >= 6 only).
+- Relevance is judged from the Pexels clip **title** (no tags/description exist), blended 75/25 with a keyword-overlap check. No suitable hook -> the video renders exactly as before.
+- Duplicates: per-channel history in the DB meta table (`hook_history:<channel>`), 14-day cooldown, recorded only after a successful upload. Selections are logged as `HOOK_LOG {...}` lines.
+- Env: `HOOK_ENGINE=0` (off everywhere), `HOOK_ENGINE_<CHANNEL>=0`, `HOOK_MIN_RELEVANCE`, `HOOK_REUSE_COOLDOWN_DAYS`, `GAMING_HOOK_MIN_INTENSITY`.
+- Tests: `python -m unittest tests.test_hook_engine -v`
 
-Workspaces, channels, Brains, immutable versions, attachments (attach / detach / disable / replace), per-channel brain list and audit log, all in `services/api/src/registry.js`. Registry calls need `x-workspace-id: <uuid>` (placeholder identity until real auth). Rules enforced: one active primary Brain per channel, one live attachment per Brain+channel, versions immutable and numbered per Brain, Idempotency-Key on create calls, workspace isolation (other workspaces get 404).
+## Comment Reply Agent
 
-```bash
-make migrate && make test   # 13 tests, needs `make up` for Postgres
-```
+One shared engine (`agents/comment_engine.py`) with thin per-channel wrappers
+(`comment_reply_agent.py` in `agents/`, `agents_hindi/`, `agents_bhakti/`, `agents_cricket/`). English, Hindi and Bhakti run it from
+their scheduler once per IST day (any time 19:00-23:59 IST, tracked in the DB so a late GitHub cron still
+counts); Cricket runs it from its own `14:00 UTC` cron (`--comments`).
 
-## Phase 1
+- One LLM call per comment returns category + reply + topic. Spam/Offensive are never answered.
+- Bhakti has a devotional voice: it mirrors greetings ("Jai Shree Ram" gets the same greeting back), never jokes about deities, never promises miracles, and never answers religious arguments (`Religious Debate` is skipped like Spam).
+- State lives in the database (`comment_history`, `topic_requests`; cricket: `cricket_comment_history`,
+  `cricket_match_requests`), not `output/*.json`, which Actions wipes every run.
+- A comment is only finished once the reply is posted, deliberately skipped, or failed permanently. LLM/API
+  hiccups are retried on the next run (3 attempts).
+- A missing `youtube.force-ssl` scope, expired token or exhausted quota aborts the run with the fix in the log.
+- Skips the channel's own comments and threads that already have a reply; never posts links or @mentions.
+- Per-run caps: 25 replies, 15 minutes, newest 250 threads.
+- `COMMENT_AUTO_REPLY=false` is a dry run (drafts stored, nothing posted); `COMMENT_FORCE=true` ignores the
+  window. Both are inputs on the English/Hindi/Bhakti/Cricket workflows' manual "Run workflow" button.
+- Tokens must include `youtube.force-ssl`: `generate_english_token.py`, `generate_hindi_token_v3.py`,
+  `generate_bhakti_token.py`, `generate_cricket_token.py` (the old cricket and bhakti tokens cannot post; regenerate them).
+- Tests: `python -m unittest tests.test_comment_engine -v`
 
-Boundaries, identifiers, schemas, API contracts, first migration, two health-checked service skeletons.
+## Known Limitations
 
-| Path | What |
-|---|---|
-| `docs/architecture/` | Architecture visualization |
-| `contracts/openapi.yaml` | Proposed `/v1` API contract |
-| `contracts/schemas/` | JSON Schemas: brain manifest, standard brain response |
-| `db/migrations/0001_registry.sql` | workspaces, channels, brains, brain_versions (immutable), attachments, audit_log |
-| `services/api` | Express API: `/v1/health`, `/v1/ready` |
-| `services/engine` | FastAPI engine: `/v1/health`, `/v1/ready` |
+- Sarvam Hindi TTS currently errors on `target_language_code` and falls back to Edge TTS
+- Custom thumbnail upload is blocked by a 403 on some channels (likely requires channel phone verification)
+- The comment-reply agent needs the `youtube.force-ssl` OAuth scope (see the Comment Reply Agent section); Gaming has no comment agent yet
+- Bhakti has no tab in the Streamlit dashboard yet (its data is in the database)
+- Saturation gating is not bypassed by `FORCE_GENERATE` (only the schedule-hour gate is)
 
-## Run
+---
 
-```bash
-make setup      # .env, npm install, python venv
-make up         # postgres (pgvector)
-make migrate
-make api        # :3000
-make engine     # :8000 (second terminal)
-make check      # health/ready on both
-make test
-```
+## Roadmap
 
-Secrets never go in this repo.
+- **Close the A/B loop**: title scores are LLM-predicted today. Validate them against real 24h view counts and let pattern selection use ground truth.
+- **Extend the intelligence layer to Cricket and Gaming**: saturation, comparison, and adaptive scheduling currently run for English and Hindi only.
+- **Failure and hook analysis**: systematic tracking of why videos underperform.
+- **Audience, opportunity, and monetization intelligence**: demographic pulls, pre-trend prediction, and RPM-correlated topic scoring.
+- **Centralized "brain" service**: built as [ai-carryon-brain-platform](https://github.com/Amit-coder78/ai-carryon-brain-platform) and live for English topic ranking (see [Brain Platform backend](#brain-platform-backend)). Next: roll it out to the other channels.
+- **Multi-tenant SaaS rebuild**: a from-scratch rebuild of this pipeline as a multi-tenant platform (FastAPI, Firebase, Celery workers on Cloud Run) lives in [ai-carryon-saas](https://github.com/Unknown183-a/ai-carryon-saas).
+
+---
+
+## Additional pipelines
+
+| Pipeline | Description | Docs |
+| --- | --- | --- |
+| **Finance** | Stock-market and finance education Shorts with a fact-check gate on every script | [`FINANCE.md`](FINANCE.md) |
+| **Horror** | Original English horror stories (clearly labelled fiction), Shorts or long-form | [`HORROR.md`](HORROR.md) |
+
+---
+
+<div align="center">
+
+**AI CarryON** | Built by Amit Kumar
+
+</div>
