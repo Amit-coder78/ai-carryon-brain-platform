@@ -18,6 +18,19 @@ test("validateParams: demand settings are range-checked and unknown keys are ref
   }
 });
 
+test("validateParams: semantic settings are range-checked and unknown keys are refused", () => {
+  assert.deepEqual(validateParams("semantic", {}), []);
+  assert.deepEqual(validateParams("semantic", { min_neighbors: 5, prior_strength: 2, repeat_similarity: 0.9 }), []);
+  assert.deepEqual(validateParams("semantic", { min_neighbors: 1, prior_strength: 0.5, repeat_similarity: 0.5 }), []);
+  assert.deepEqual(validateParams("semantic", { min_neighbors: 50, prior_strength: 50, repeat_similarity: 1 }), []);
+  for (const bad of [{ min_neighbors: 0 }, { min_neighbors: 51 }, { min_neighbors: 2.5 }, { min_neighbors: "3" },
+    { prior_strength: 0.4 }, { prior_strength: 51 }, { prior_strength: "3" }, { prior_strength: NaN },
+    { repeat_similarity: 0.49 }, { repeat_similarity: 1.01 }, { repeat_similarity: null }, { half_life_days: 14 }]) {
+    assert.ok(validateParams("semantic", bad).length > 0, JSON.stringify(bad));
+  }
+  assert.deepEqual(validateParams("semantic", []), ["params must be an object"]);
+});
+
 test("validateParams: other Brain types take no settings; params must be an object", () => {
   assert.deepEqual(validateParams("heuristic", {}), []);
   assert.match(validateParams("heuristic", { half_life_days: 7 })[0], /takes no params/);

@@ -2,6 +2,19 @@
 
 Moved out of the main README so the front page stays readable. Newest phase first. Back to the [README](../README.md).
 
+## Phase 8: Semantic-neighbour Brain (shadow first)
+
+Code: `services/engine/app/runtime/semantic.py` (estimator `semantic-v1`), `SemanticBrain` in `brains.py`, `services/api/src/params.js` (settings limits), `scripts/ci_engine.sh` + `.github/actions/ci-engine` (seeding). Tests: `services/engine/tests/test_semantic.py`, `services/api/src/params.test.js`.
+
+- New Brain type `semantic`. The **caller** owns the history and a frozen text encoder: it embeds each candidate, finds this channel's most similar *past* videos and sends three numbers per candidate: `neighbor_ratio` (similarity-weighted geometric mean of past outcome / channel baseline, `null` = unknown), `neighbor_count` (the sample behind it) and `max_similarity_recent` (cosine similarity in [0, 1] to the most similar recently posted video). The engine never sees text or embeddings, stays stateless, and the score is reproducible from the logged features alone.
+- **No evidence is neutral, not bad.** Fewer than `min_neighbors` neighbours (default 3) scores exactly 0.5, so a candidate nobody can judge is not ranked below one with known-poor neighbours. If no candidate has evidence every score is equal and the Brain **abstains** from fusion (Phase 4 rule).
+- **Small samples are shrunk** towards the neutral ratio: `log(ratio) * n / (n + prior_strength)`, then a logistic squash into (0, 1). Confidence is `n / (n + prior_strength)` clamped to [0.05, 0.95].
+- **Near-repeats are penalised**: at or above `repeat_similarity` (default 0.85) the score loses up to 50% (reason `near_repeat`), even when there is no neighbour evidence.
+- Settings per Brain version (`params`): `min_neighbors` 1..50, `prior_strength` 0.5..50, `repeat_similarity` 0.5..1.0. Unknown keys and out-of-range values are a 400 from the API and fail only that Brain in the engine.
+- `ci_engine.sh` / the `ci-engine` action seed the semantic Brain next to the heuristic one. `SEMANTIC_ROLE` / `semantic_role`: `shadow` (default: runs and is reported in the response, never changes the ranking), `supporting` (votes in `rrf-v1`) or `off`. A shadow Brain's per-candidate scores are in `brains[].recommendations`; the engine's decision record keeps only Brain metadata, so a caller that wants to compare shadow and primary must log the response itself (the engine database is discarded after each CI job).
+
+Not in this phase, on purpose: the encoder and the neighbour search (they live in the pipeline, which has the persistent database), a learned model (CatBoost) and promotion automation. Promote `shadow` to `supporting` only after an offline comparison on logged decisions beats the channel baseline.
+
 ## Phase 7: Lifecycle and portable packages (roadmap steps 4 and 11)
 
 Code: `services/api/src/lifecycle.js` (routes), `services/api/src/package.js` (package format, checksums, secret scan), migration `0004_lifecycle_packages.sql`. Demo: `scripts/demo_phase7.sh`.
