@@ -11,9 +11,9 @@ Architecture: open `docs/architecture/index.html` in a browser.
 - `GET /v1/decisions`, `GET /v1/decisions/{id}`, `POST /v1/decisions/{id}/selection` (pipeline reports what it used, once), `POST /v1/observations` (outcomes such as `views_24h`, linked to a decision).
 - The topic key is defined once in `contracts/topic-key-vectors.json` and tested in both services.
 
-## Phase 4: LangGraph integration (client lives in ai-carryon-saas)
+## Phase 4: pipeline integration (client lives in ai-carryon)
 
-The pipeline's Trend node calls `POST /v1/runtime/execute` before choosing a topic (client: `backend/ai/brain_platform/client.py` in `ai-carryon-saas`). Contract points this repo guarantees and tests (`services/engine/tests/test_api.py`, `test_runtime.py`):
+The `ai-carryon` pipeline (per-channel scheduler jobs on GitHub Actions) calls `POST /v1/runtime/execute` before choosing a topic (client: `agents/brain_client.py`, selection: `agents/topic_selection.py`, both in `ai-carryon`). Contract points this repo guarantees and tests (`services/engine/tests/test_api.py`, `test_runtime.py`):
 
 - Response carries `source` (`brains` | `partial` | `baseline_fallback`), `policy_version`, `execution_id`, `ranked`, and each Brain's `brain_id` / `brain_version_id` / `role` / `status`, so the pipeline can record exactly where a pick came from.
 - A Brain whose scores are all identical **abstains** from fusion (no alphabetical tie-break leaking in as a fake recommendation), and tied scores inside an informative Brain share a rank. Candidates nobody scored come back as `unscored` with `aggregate_score` 0.0 in the caller's order.
