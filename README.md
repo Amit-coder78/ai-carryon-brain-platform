@@ -26,6 +26,8 @@ Not in this phase, on purpose: package **signatures** (checksums detect damage o
 - **History fills `channel_baseline_ratio`** (it was always the neutral 1.0 before). From this channel's selected videos with a `views_24h` observation: baseline = median, topic ratio = mean of views/baseline over past videos with the *same* topic key. Needs 3+ videos, otherwise it stays neutral. Exact match only, no fuzzy guessing.
 - Two new optional candidate features: `recent_requesters` (null = unknown, flagged `recency_unknown`, never assumed fresh) and `history_videos`. Explicit caller features still win. No migration needed.
 
+Demo: `scripts/demo_phase6.sh` (needs `make api` and `make engine` running) shows fresh vs fading demand, one person counted once, and the Brain abstaining.
+
 Not in this phase: spam/bot detection (comment classification is upstream; this only guarantees one person counts once), audience-size normalisation (the registry doesn't store it yet), semantic topic matching (clusters), and learned weights. The constants (half-life, minimum requesters, saturation) are fixed in `demand.py` and versioned by the estimator name.
 
 ## Phase 5: Signals, features and decision records
