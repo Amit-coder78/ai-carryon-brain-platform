@@ -2,10 +2,10 @@
 
 > The decision-making backend for [**AI CarryON**](https://github.com/Unknown183-a/ai-carryon): a registry of versioned "Brains" that rank candidate topics, fuse their opinions, and record every decision so it can be audited and learned from.
 
-![Node](https://img.shields.io/badge/node-20-339933?logo=node.js&logoColor=white)
-![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/engine-FastAPI-009688?logo=fastapi&logoColor=white)
-![Postgres](https://img.shields.io/badge/db-Postgres%20%2B%20pgvector-336791?logo=postgresql&logoColor=white)
+[![Node](https://img.shields.io/badge/node-20-339933?logo=node.js&logoColor=white)](services/api/package.json)
+[![Python](https://img.shields.io/badge/python-3.11-3776AB?logo=python&logoColor=white)](.python-version)
+[![FastAPI](https://img.shields.io/badge/engine-FastAPI-009688?logo=fastapi&logoColor=white)](services/engine/app/main.py)
+[![Postgres](https://img.shields.io/badge/db-Postgres%20%2B%20pgvector-336791?logo=postgresql&logoColor=white)](db/migrations)
 
 ## Architecture
 
