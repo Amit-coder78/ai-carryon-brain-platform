@@ -12,6 +12,17 @@ The pipeline's Trend node calls `POST /v1/runtime/execute` before choosing a top
 - A Brain whose scores are all identical **abstains** from fusion (no alphabetical tie-break leaking in as a fake recommendation), and tied scores inside an informative Brain share a rank. Candidates nobody scored come back as `unscored` with `aggregate_score` 0.0 in the caller's order.
 - No attached Brain, wrong workspace, disabled attachment: `baseline_fallback`, never an error.
 
+### Running the engine inside a GitHub Actions job (no hosting)
+
+`.github/actions/ci-engine` starts an ephemeral pgvector Postgres, migrates it, seeds one workspace + channel + active heuristic Brain, starts the engine on `127.0.0.1`, waits for `/v1/ready`, then exports `BRAIN_ENGINE_URL`, `BRAIN_WORKSPACE_ID` and `BRAIN_CHANNEL_ID_<CHANNEL>` to the later steps. Everything is discarded when the job ends (about 15 s of setup). The settings are published only after the engine is ready, so a failed start leaves the Brain switched off rather than half-configured.
+
+```yaml
+- uses: Amit-coder78/ai-carryon-brain-platform/.github/actions/ci-engine@main
+  with: { channel: english }
+```
+
+`scripts/ci_engine.sh` is the same logic for local use: `DATABASE_URL=... CHANNEL=english ./scripts/ci_engine.sh` prints the exports. Note the registry is re-created every run, so there is no history or audit trail across runs; use a hosted engine with a persistent database when you need that.
+
 ```bash
 make test   # engine suite runs the DB-backed tests once `make up && make migrate` has run
 ```
