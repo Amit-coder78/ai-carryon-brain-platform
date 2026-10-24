@@ -2,7 +2,7 @@
 isolates failures, accepts partial results, and falls back to the baseline order when too few Brains answer."""
 import asyncio
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from .brains import BRAIN_TYPES
@@ -20,6 +20,7 @@ class ResolvedBrain:
     brain_type: str
     role: str
     impl: object | None = None   # tests may inject an implementation; otherwise looked up from BRAIN_TYPES
+    params: dict = field(default_factory=dict)   # settings of this Brain version (registry: brain_versions.params)
 
 
 async def _run_one(rb: ResolvedBrain, candidates: list[Candidate], opts: Options,
@@ -33,7 +34,7 @@ async def _run_one(rb: ResolvedBrain, candidates: list[Candidate], opts: Options
                 cls = BRAIN_TYPES.get(rb.brain_type)
                 if cls is None:
                     raise ValueError(f"unsupported_brain_type:{rb.brain_type}")
-                impl = cls()
+                impl = cls(rb.params)
             recs = await asyncio.wait_for(impl.run(candidates), timeout=opts.timeout_ms / 1000)
             known = {c.candidate_id for c in candidates}
             recs = [r for r in recs if r.candidate_id in known]   # a Brain can't invent candidates

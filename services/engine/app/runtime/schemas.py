@@ -16,6 +16,16 @@ class CandidateFeatures(BaseModel):
     # features). history_videos: how many past videos stand behind channel_baseline_ratio (0 = neutral default).
     recent_requesters: float | None = Field(None, ge=0)
     history_videos: int = Field(0, ge=0)
+    # (age in whole hours since a person's latest request, number of people), one pair per bucket. Lets each demand
+    # Brain version apply its own half-life. Working data only: never written to the decision record.
+    request_age_hours: list[tuple[int, int]] | None = Field(None, max_length=1000, exclude=True)
+
+    @field_validator("request_age_hours")
+    @classmethod
+    def non_negative_buckets(cls, v):
+        if v is not None and any(h < 0 or n < 0 for h, n in v):
+            raise ValueError("request_age_hours needs non-negative integers")
+        return v
 
 
 class Candidate(BaseModel):

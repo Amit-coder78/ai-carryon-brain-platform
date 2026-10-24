@@ -22,6 +22,10 @@ class HeuristicBrain:
 
     W_DEMAND, W_TREND, W_HISTORY = 0.5, 0.3, 0.2
 
+    def __init__(self, params: dict | None = None):
+        if params:
+            raise ValueError("heuristic Brain takes no params")
+
     async def run(self, candidates: list[Candidate]) -> list[Recommendation]:
         out = []
         for c in candidates:
@@ -53,14 +57,27 @@ class DemandBrain:
     (a single request never decides a topic). If NO candidate has enough demand, every score is 0, so under
     Phase 4's rule the Brain abstains from fusion rather than voting noise."""
 
+    def __init__(self, params: dict | None = None):
+        self.params = demand.DemandParams.from_dict(params)   # bad settings fail this Brain only, at run time
+
     async def run(self, candidates: list[Candidate]) -> list[Recommendation]:
+        p = self.params
+        custom_half_life = p.half_life_days != demand.HALF_LIFE_DAYS
         out = []
         for c in candidates:
             f = c.features
-            e = demand.estimate(f.unique_requesters, f.recent_requesters)
+            recent, extra = f.recent_requesters, []
+            if custom_half_life and recent is not None:
+                if f.request_age_hours is not None:
+                    recent = demand.recent_from_buckets(f.request_age_hours, p.half_life_days)
+                else:   # caller-supplied recency: it was weighted elsewhere, so this version's half-life can't apply
+                    extra.append("half_life_not_applied")
+            e = demand.estimate(f.unique_requesters, recent, min_requesters=p.min_requesters)
             out.append(Recommendation(
-                candidate_id=c.candidate_id, score=e.score, confidence=e.confidence, reason_codes=e.reasons,
+                candidate_id=c.candidate_id, score=e.score, confidence=e.confidence, reason_codes=e.reasons + extra,
                 evidence_refs=[f"estimator:{demand.ESTIMATOR_VERSION}",
+                               f"param:half_life_days={p.half_life_days:g}",
+                               f"param:min_requesters={p.min_requesters}",
                                f"feature:unique_requesters={f.unique_requesters}",
                                f"feature:effective_requesters={e.effective_requesters}",
                                f"estimate:low={e.low},high={e.high}"]))

@@ -2,6 +2,7 @@
 // Pure functions only: no database, no HTTP. The checksums give integrity (a damaged or edited package is
 // rejected); they are NOT signatures, so they do not prove who made a package.
 import { createHash } from "node:crypto";
+import { validateParams } from "./params.js";
 
 export const PACKAGE_SCHEMA_VERSION = 1;
 export const MAX_VERSIONS = 100;
@@ -53,7 +54,7 @@ export function buildPackage(brain, versions, { actor, now = new Date() }) {
     "brain.json": {
       name: brain.name,
       brain_type: brain.brain_type,
-      versions: versions.map((v) => ({ version: v.version, capabilities: v.capabilities, artifact_refs: v.artifact_refs, checksum: v.checksum ?? null })),
+      versions: versions.map((v) => ({ version: v.version, capabilities: v.capabilities, artifact_refs: v.artifact_refs, checksum: v.checksum ?? null, params: v.params ?? {} })),
     },
     "provenance.json": {
       platform: "ai-carryon-brain-platform",
@@ -154,6 +155,8 @@ export function inspectPackage(pkg) {
         && Array.isArray(v.capabilities) && v.capabilities.every((x) => typeof x === "string")
         && Array.isArray(v.artifact_refs) && (v.checksum === null || typeof v.checksum === "string");
       if (!ok) { p.push("each version needs an increasing integer version, string capabilities, artifact_refs and checksum"); break; }
+      const bad = validateParams(typeof b.brain_type === "string" ? b.brain_type.trim() : "", v.params ?? {});   // packages from before params existed have none
+      if (bad.length) { p.push(`version ${v.version}: ${bad.join("; ")}`); break; }
       prev = v.version;
     }
     const m = pkg.manifest.brain;

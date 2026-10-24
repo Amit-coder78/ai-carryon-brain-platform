@@ -7,7 +7,7 @@ import psycopg
 from .executor import ResolvedBrain
 
 SQL = """
-SELECT b.brain_id, v.brain_version_id, b.brain_type, a.role
+SELECT b.brain_id, v.brain_version_id, b.brain_type, a.role, v.params
 FROM attachments a
 JOIN brains b ON b.brain_id = a.brain_id
 JOIN channels c ON c.channel_id = a.channel_id
@@ -20,5 +20,5 @@ ORDER BY a.created_at
 
 async def resolve(conn: psycopg.AsyncConnection, workspace_id: UUID, channel_id: UUID) -> list[ResolvedBrain]:
     cur = await conn.execute(SQL, (channel_id, workspace_id, workspace_id))
-    return [ResolvedBrain(brain_id=r[0], brain_version_id=r[1], brain_type=r[2], role=r[3])
+    return [ResolvedBrain(brain_id=r[0], brain_version_id=r[1], brain_type=r[2], role=r[3], params=r[4] or {})
             for r in await cur.fetchall()]
