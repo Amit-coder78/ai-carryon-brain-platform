@@ -44,5 +44,6 @@ echo "  delete while active: HTTP $(code -X DELETE $API/v1/brains/$BI -H "x-work
 echo "  archive without detach: HTTP $(code -X POST $API/v1/brains/$BI/archive -H "x-workspace-id: $WS_B" -H "$J" -d '{}')"
 post $API/v1/brains/$BI/archive -H "x-workspace-id: $WS_B" -H "$J" -d '{"detach_attachments":true}' | field "['status']"
 echo "  delete after archive: HTTP $(code -X DELETE $API/v1/brains/$BI -H "x-workspace-id: $WS_B")"
-echo "  ranking now falls back: $(post $ENG/v1/runtime/execute -H "x-workspace-id: $WS_B" -H "$J" -d "{\"channel_id\":\"$CH_B\",\"candidates\":[{\"candidate_id\":\"a\"}]}" | field "['source']")"
+R=$(post $ENG/v1/runtime/execute -H "x-workspace-id: $WS_B" -H "$J" -d "{\"channel_id\":\"$CH_B\",\"candidates\":[{\"candidate_id\":\"a\",\"title\":\"any topic\",\"features\":{}}]}" | field "['source']")
+echo "  ranking now falls back: $R"
 echo "audit:"; curl -fsS $API/v1/audit -H "x-workspace-id: $WS_B" | python3 -c "import sys,json;print(' ',[x['action'] for x in reversed(json.load(sys.stdin)['items'])])"
