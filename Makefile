@@ -1,4 +1,4 @@
-.PHONY: setup up down migrate api engine test test-api test-engine check
+.PHONY: setup up down migrate api engine test test-api test-engine check signing-key
 
 setup:        ## one-time: .env, node deps, python venv
 	./scripts/setup.sh
@@ -17,6 +17,9 @@ api:
 
 engine:
 	cd services/engine && . .venv/bin/activate && python -m uvicorn app.main:app --port $${ENGINE_PORT:-8001} --reload
+
+signing-key:  ## print a new package-signing key (keep the private key secret)
+	@cd services/api && node src/signing-key.js
 
 test: test-api test-engine
 

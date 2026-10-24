@@ -1,6 +1,7 @@
 // Portable Brain packages (architecture doc: "Export and import").
 // Pure functions only: no database, no HTTP. The checksums give integrity (a damaged or edited package is
-// rejected); they are NOT signatures, so they do not prove who made a package.
+// rejected); they do not prove who made a package. Authenticity is the optional signature in signing.js,
+// which sits outside the sealed content.
 import { createHash } from "node:crypto";
 import { validateParams } from "./params.js";
 
@@ -80,7 +81,7 @@ export function buildPackage(brain, versions, { actor, now = new Date() }) {
     }),
     known_limitations: [
       "Registry data only: no model artifacts, learned state, training snapshots or channel bindings.",
-      "Checksums give integrity, not authenticity: packages are not signed.",
+      "Checksums give integrity, not authenticity. A signature, when present, shows who sealed the package, but only matters if you trust that key.",
       "Portability does not guarantee identical results on a different audience.",
     ],
     restoration: "POST /v1/brains/import. The Brain is created inactive (draft) and must be activated or attached.",
