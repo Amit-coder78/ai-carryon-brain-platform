@@ -1,6 +1,5 @@
 """Coordinator step 1: which Brains may run for this channel? Only active, enabled attachments whose Brain is
 active, pinned to an immutable version, inside the caller's workspace."""
-import os
 from uuid import UUID
 
 import psycopg
@@ -19,9 +18,7 @@ ORDER BY a.created_at
 """
 
 
-async def resolve(workspace_id: UUID, channel_id: UUID) -> list[ResolvedBrain]:
-    url = os.getenv("DATABASE_URL", "postgresql://brain:brain@localhost:5432/brain")
-    async with await psycopg.AsyncConnection.connect(url, connect_timeout=2) as conn:
-        cur = await conn.execute(SQL, (channel_id, workspace_id, workspace_id))
-        return [ResolvedBrain(brain_id=r[0], brain_version_id=r[1], brain_type=r[2], role=r[3])
-                for r in await cur.fetchall()]
+async def resolve(conn: psycopg.AsyncConnection, workspace_id: UUID, channel_id: UUID) -> list[ResolvedBrain]:
+    cur = await conn.execute(SQL, (channel_id, workspace_id, workspace_id))
+    return [ResolvedBrain(brain_id=r[0], brain_version_id=r[1], brain_type=r[2], role=r[3])
+            for r in await cur.fetchall()]

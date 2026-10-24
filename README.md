@@ -4,6 +4,13 @@ A modular AI Brain platform for AI CarryON, enabling channel-specific intelligen
 
 Architecture: open `docs/architecture/index.html` in a browser.
 
+## Phase 5: Signals, features and decision records
+
+- `POST /v1/comment-signals` (API :3000) stores demand signals: a salted hash of the commenter plus a normalized topic key, never comment text. The same person counts once however many times they comment.
+- `POST /v1/runtime/execute` now fills in missing candidate features from the last 30 days of `request` signals (exact topic-key match, per channel). Explicit `features` from the caller always win. Every execution writes a decision record and returns `decision_id`.
+- `GET /v1/decisions`, `GET /v1/decisions/{id}`, `POST /v1/decisions/{id}/selection` (pipeline reports what it used, once), `POST /v1/observations` (outcomes such as `views_24h`, linked to a decision).
+- The topic key is defined once in `contracts/topic-key-vectors.json` and tested in both services.
+
 ## Phase 4: LangGraph integration (client lives in ai-carryon-saas)
 
 The pipeline's Trend node calls `POST /v1/runtime/execute` before choosing a topic (client: `backend/ai/brain_platform/client.py` in `ai-carryon-saas`). Contract points this repo guarantees and tests (`services/engine/tests/test_api.py`, `test_runtime.py`):

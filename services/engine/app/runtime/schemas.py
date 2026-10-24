@@ -70,6 +70,7 @@ class Ranked(BaseModel):
 
 class ExecuteResponse(BaseModel):
     execution_id: UUID
+    decision_id: UUID | None = None   # the stored record of this ranking (None if it could not be written)
     source: Literal["brains", "partial", "baseline_fallback"]
     policy_version: str
     ranked: list[Ranked]
