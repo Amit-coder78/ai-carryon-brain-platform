@@ -12,6 +12,10 @@ class CandidateFeatures(BaseModel):
     similar_requests: int = Field(0, ge=0)         # sample size behind the demand signal
     days_since_trend: float = Field(30, ge=0)
     channel_baseline_ratio: float = Field(1.0, ge=0)  # past similar videos' views / channel baseline
+    # Phase 6. recent_requesters: distinct requesters weighted by recency (None = unknown, e.g. caller-supplied
+    # features). history_videos: how many past videos stand behind channel_baseline_ratio (0 = neutral default).
+    recent_requesters: float | None = Field(None, ge=0)
+    history_videos: int = Field(0, ge=0)
 
 
 class Candidate(BaseModel):
