@@ -25,15 +25,17 @@ GROUP BY topic_key, commenter_hash
 """
 
 
-async def _demand(conn, workspace_id, channel_id, keys: list[str]) -> dict[str, tuple[int, int, float]]:
+async def _demand(conn, workspace_id, channel_id, keys: list[str]) -> dict[str, tuple[int, int, float, list]]:
     cur = await conn.execute(SQL, (workspace_id, channel_id, keys, WINDOW_DAYS))
     agg: dict[str, list] = {}
     for key, _who, signals, age_days in await cur.fetchall():
-        a = agg.setdefault(key, [0, 0, 0.0])
+        a = agg.setdefault(key, [0, 0, 0.0, {}])
         a[0] += 1                                   # distinct requesters: a person counts once
         a[1] += signals                             # raw volume, kept only as the sample-size signal
-        a[2] += recency_weight(float(age_days))
-    return {k: (a[0], a[1], a[2]) for k, a in agg.items()}
+        a[2] += recency_weight(float(age_days))     # default half-life; Brain versions with their own re-weight below
+        hour = max(0, round(float(age_days) * 24))
+        a[3][hour] = a[3].get(hour, 0) + 1
+    return {k: (a[0], a[1], a[2], sorted(a[3].items())) for k, a in agg.items()}
 
 
 async def enrich(conn: psycopg.AsyncConnection, workspace_id: UUID, channel_id: UUID,
@@ -56,7 +58,8 @@ async def enrich(conn: psycopg.AsyncConnection, workspace_id: UUID, channel_id: 
         if d or h:
             fields = {}
             if d:
-                fields.update(unique_requesters=d[0], similar_requests=d[1], recent_requesters=round(d[2], 4))
+                fields.update(unique_requesters=d[0], similar_requests=d[1], recent_requesters=round(d[2], 4),
+                              request_age_hours=d[3])
             if h:
                 fields.update(channel_baseline_ratio=round(h[0], 4), history_videos=h[1])
             c = c.model_copy(update={"features": CandidateFeatures(**fields)})

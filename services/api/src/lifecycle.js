@@ -48,8 +48,8 @@ export function lifecycleRouter(pool) {
     const out = [];
     for (const [i, v] of versions.entries()) {
       const { rows } = await c.query(
-        `INSERT INTO brain_versions (brain_id, version, capabilities, artifact_refs, checksum) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-        [brainId, i + 1, JSON.stringify(v.capabilities), JSON.stringify(v.artifact_refs), v.checksum ?? null]);
+        `INSERT INTO brain_versions (brain_id, version, capabilities, artifact_refs, checksum, params) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+        [brainId, i + 1, JSON.stringify(v.capabilities), JSON.stringify(v.artifact_refs), v.checksum ?? null, JSON.stringify(v.params ?? {})]);
       out.push(rows[0]);
     }
     return out;

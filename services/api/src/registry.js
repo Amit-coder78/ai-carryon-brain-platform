@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { tx } from "./db.js";
 import { audit } from "./audit.js";
 import { HttpError, badRequest, notFound, conflict, requireUuid, requireString, isUuid } from "./errors.js";
+import { validateParams } from "./params.js";
 
 export const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 const ROLES = ["primary", "supporting", "experimental", "shadow"];
@@ -135,6 +136,8 @@ export function registryRouter(pool) {
     const arts = req.body?.artifact_refs ?? [];
     if (!Array.isArray(caps) || !caps.every((x) => typeof x === "string")) throw badRequest("capabilities must be an array of strings");
     if (!Array.isArray(arts)) throw badRequest("artifact_refs must be an array");
+    const params = req.body?.params ?? {};
+    if (params === null || typeof params !== "object" || Array.isArray(params)) throw badRequest("params must be an object");
     const checksum = req.body?.checksum ?? null;
     const row = await tx(pool, async (c) => {
       requireUuid(req.params.brain_id, "brain_id");
@@ -142,12 +145,14 @@ export function registryRouter(pool) {
         [req.params.brain_id, ctx.workspaceId]);
       if (!b.rowCount) throw notFound("brain not found");
       if (b.rows[0].status === "archived") throw conflict("brain is archived");
+      const problems = validateParams(b.rows[0].brain_type, params);
+      if (problems.length) throw badRequest(problems.join("; "));
       const { rows } = await c.query(
-        `INSERT INTO brain_versions (brain_id, version, capabilities, artifact_refs, checksum)
-         VALUES ($1, COALESCE((SELECT MAX(version) FROM brain_versions WHERE brain_id=$1),0)+1, $2, $3, $4) RETURNING *`,
-        [req.params.brain_id, JSON.stringify(caps), JSON.stringify(arts), checksum]);
+        `INSERT INTO brain_versions (brain_id, version, capabilities, artifact_refs, checksum, params)
+         VALUES ($1, COALESCE((SELECT MAX(version) FROM brain_versions WHERE brain_id=$1),0)+1, $2, $3, $4, $5) RETURNING *`,
+        [req.params.brain_id, JSON.stringify(caps), JSON.stringify(arts), checksum, JSON.stringify(params)]);
       await c.query(`UPDATE brains SET updated_at=now(), status = CASE WHEN status='draft' THEN 'active' ELSE status END WHERE brain_id=$1`, [req.params.brain_id]);
-      await audit(c, ctx, "brain.version.create", "brain", req.params.brain_id, { version: rows[0].version });
+      await audit(c, ctx, "brain.version.create", "brain", req.params.brain_id, { version: rows[0].version, ...(Object.keys(params).length ? { params } : {}) });
       return rows[0];
     });
     res.status(201).json(row);

@@ -28,7 +28,22 @@ Not in this phase, on purpose: package **signatures** (checksums detect damage o
 
 Demo: `scripts/demo_phase6.sh` (needs `make api` and `make engine` running) shows fresh vs fading demand, one person counted once, and the Brain abstaining.
 
-Not in this phase: spam/bot detection (comment classification is upstream; this only guarantees one person counts once), audience-size normalisation (the registry doesn't store it yet), semantic topic matching (clusters), and learned weights. The constants (half-life, minimum requesters, saturation) are fixed in `demand.py` and versioned by the estimator name.
+### Demand settings per Brain version
+
+The demand Brain's half-life and minimum number of requesters can be set on each Brain version (`params` on `POST /v1/brains/{id}/versions`; migration `0005_version_params.sql`):
+
+```
+{"params": {"half_life_days": 7, "min_requesters": 5}}
+```
+
+- `half_life_days`: number from 1 to 365 (default 14). `min_requesters`: integer from 1 to 1000 (default 3). Missing keys use the defaults, so every version created before this change behaves exactly as before. Unknown keys and out-of-range values are a 400. Other Brain types accept no params.
+- Versions are immutable, so changing a setting means a new version. The decision record already names the Brain version, so it also names the settings; the Brain's evidence refs show `param:half_life_days=...` and `param:min_requesters=...`.
+- Clone and export/import copy the settings with each version. Packages made before this change import fine (no params means defaults); a package with invalid params fails the compatibility check.
+- If the engine finds invalid params on a version, only that Brain fails (status `error`); the other Brains still rank.
+- A half-life only applies when the engine computed the recency from stored signals. If a caller sends its own `features` with `recent_requesters`, that value is used as given and the reason code `half_life_not_applied` is added. `min_requesters` always applies.
+- Ages are bucketed to the hour for this, which changes a weight by at most about 1.4% at the shortest half-life.
+
+Not in this phase: spam/bot detection (comment classification is upstream; this only guarantees one person counts once), audience-size normalisation (the registry doesn't store it yet), semantic topic matching (clusters), and learned weights. The saturation constant and uncertainty band are fixed in `demand.py` and versioned by the estimator name; half-life and minimum requesters are per-version settings (below).
 
 ## Phase 5: Signals, features and decision records
 
