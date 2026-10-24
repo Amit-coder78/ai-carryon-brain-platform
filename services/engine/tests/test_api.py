@@ -69,7 +69,7 @@ def test_validation_and_identity_errors():
     assert client.post("/v1/runtime/execute", json={"channel_id": ch, "candidates": []}, headers={"x-workspace-id": str(uuid.uuid4())}).status_code == 422
 
 
-# ── Phase 4: the exact wire shape the LangGraph pipeline's client (ai-carryon-saas
+# ── Phase 4: the exact wire shape the ai-carryon pipeline's client (agents/brain_client.py
 #    backend/ai/brain_platform/client.py) sends: opaque ids, title, optional features,
 #    options.timeout_ms, x-workspace-id header. ───────────────────────────────────────
 def pipeline_request(ch, with_features):

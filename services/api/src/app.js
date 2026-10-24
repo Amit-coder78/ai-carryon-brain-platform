@@ -1,6 +1,7 @@
 import express from "express";
 import { randomUUID } from "node:crypto";
 import { registryRouter, errorHandler } from "./registry.js";
+import { signalsRouter } from "./signals.js";
 
 export function createApp({ checkDb, pool } = {}) {
   const app = express();
@@ -19,7 +20,10 @@ export function createApp({ checkDb, pool } = {}) {
       res.status(503).json({ code: "not_ready", message: "database unavailable", correlation_id: req.correlationId });
     }
   });
-  if (pool) app.use("/v1", registryRouter(pool));
+  if (pool) {
+    app.use("/v1", registryRouter(pool));
+    app.use("/v1", signalsRouter(pool));
+  }
   app.use((req, res) => res.status(404).json({ code: "not_found", message: "no such route", correlation_id: req.correlationId }));
   app.use(errorHandler);
   return app;

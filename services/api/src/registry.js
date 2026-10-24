@@ -4,20 +4,20 @@ import { tx } from "./db.js";
 import { audit } from "./audit.js";
 import { HttpError, badRequest, notFound, conflict, requireUuid, requireString, isUuid } from "./errors.js";
 
-const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
+export const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 const ROLES = ["primary", "supporting", "experimental", "shadow"];
 const BRAIN_STATUS = ["draft", "active", "disabled", "archived", "deleted"];
 
 // Phase 2 identity: caller states workspace + actor in headers. REAL authN/authZ replaces this before any
 // non-local use; every query below is already scoped by ctx.workspaceId so the swap is one function.
-function context(req) {
+export function context(req) {
   const workspaceId = req.get("x-workspace-id");
   if (!isUuid(workspaceId)) throw badRequest("x-workspace-id header (uuid) is required");
   return { workspaceId, actor: req.get("x-actor") || "anonymous", correlationId: req.correlationId };
 }
 
 // Idempotency: same key + same body replays the stored response; same key + different body is a 409.
-async function idempotent(client, ctx, req, run) {
+export async function idempotent(client, ctx, req, run) {
   const key = req.get("idempotency-key");
   if (!key) return run();
   const hash = createHash("sha256").update(req.method + req.path + JSON.stringify(req.body ?? {})).digest("hex");
