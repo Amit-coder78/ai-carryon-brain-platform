@@ -43,13 +43,14 @@ export function lifecycleRouter(pool) {
     }
   }
 
-  // Copies are renumbered from 1 (new identity). Evaluation never carries over: the copy has to earn it again.
-  async function insertVersions(c, brainId, versions) {
+  // Copies are renumbered from 1 (new identity), or from `after` + 1 when appending to an existing Brain.
+  // Evaluation never carries over: the copy has to earn it again.
+  async function insertVersions(c, brainId, versions, after = 0) {
     const out = [];
     for (const [i, v] of versions.entries()) {
       const { rows } = await c.query(
         `INSERT INTO brain_versions (brain_id, version, capabilities, artifact_refs, checksum, params) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-        [brainId, i + 1, JSON.stringify(v.capabilities), JSON.stringify(v.artifact_refs), v.checksum ?? null, JSON.stringify(v.params ?? {})]);
+        [brainId, after + i + 1, JSON.stringify(v.capabilities), JSON.stringify(v.artifact_refs), v.checksum ?? null, JSON.stringify(v.params ?? {})]);
       out.push(rows[0]);
     }
     return out;
@@ -255,6 +256,86 @@ export function lifecycleRouter(pool) {
       }));
     } catch (e) {
       if (e instanceof HttpError) await auditRefusal(pool, ctx, "brain.import.rejected", { reason: e.message });
+      throw e;
+    }
+    res.status(out.status).json(out.body);
+  }));
+
+  // ---- import versions: add a package's versions to an EXISTING Brain (never creates a Brain) ----
+  // Same checks as a normal import. The versions continue the Brain's numbering, arrive unevaluated, and change
+  // nothing else: attachments stay pinned to the version they use, and a draft Brain stays a draft.
+  async function appendBlockers(c, ctx, brain, report, sha) {
+    const out = [];
+    if (brain.status === "archived") out.push("brain is archived");
+    if (report.brain.brain_type !== brain.brain_type) out.push(`package is for brain_type "${report.brain.brain_type}" but this Brain is "${brain.brain_type}"`);
+    if (!report.brain.versions.length) out.push("package holds no versions to import");
+    const { rows } = await c.query(
+      `SELECT detail FROM audit_log WHERE workspace_id=$1 AND object_type='brain' AND object_id=$2
+         AND action='brain.version.import' AND detail->>'package_sha256'=$3 ORDER BY audit_id LIMIT 1`,
+      [ctx.workspaceId, brain.brain_id, sha]);
+    if (rows.length) out.push(`this package was already imported into this Brain (as versions ${rows[0].detail.created_versions?.join(", ") ?? "?"})`);
+    return out;
+  }
+
+  r.post("/brains/:brain_id/versions/import", wrap(async (req, res) => {
+    const ctx = context(req);
+    if (req.body?.package === undefined) throw badRequest("package is required");
+    if (req.body.dry_run !== undefined && typeof req.body.dry_run !== "boolean") throw badRequest("dry_run must be a boolean");
+    const dry = req.body.dry_run === true;
+    await requireWorkspace(pool, ctx);
+    const target = await loadBrain(pool, ctx, req.params.brain_id);   // 404 for another workspace's Brain, before anything is read
+
+    const report = inspectPackage(req.body.package);
+    if (!report.valid) {
+      await audit(pool, ctx, "brain.version.import.rejected", "brain", target.brain_id, { dry_run: dry, failed: report.checks.filter((k) => k.status === "failed") }).catch(() => {});
+      throw unprocessable("invalid_package", "package failed validation; nothing was added", { checks: report.checks });
+    }
+    const sha = req.body.package.package_sha256;
+    const src = report.brain;
+
+    if (dry) {
+      const [top] = (await pool.query(`SELECT COALESCE(max(version),0)::int AS top FROM brain_versions WHERE brain_id=$1`, [target.brain_id])).rows;
+      const blockers = await appendBlockers(pool, ctx, target, report, sha);
+      return res.json({
+        dry_run: true, valid: true, checks: report.checks, blockers, can_import: blockers.length === 0,
+        would_add: src.versions.map((v, i) => ({ source_version: v.version, new_version: top.top + i + 1 })),
+      });
+    }
+
+    let out;
+    try {
+      out = await tx(pool, (c) => idempotent(c, ctx, req, async () => {
+        const brain = await loadBrain(c, ctx, req.params.brain_id, true);      // lock: numbering is serialized per Brain
+        const blockers = await appendBlockers(c, ctx, brain, report, sha);
+        if (blockers.length) throw conflict(blockers.join("; "));
+        const before = (await c.query(
+          `SELECT COALESCE(max(version),0)::int AS top, count(*)::int AS n,
+                  (SELECT count(*)::int FROM attachments WHERE brain_id=$1) AS att
+           FROM brain_versions WHERE brain_id=$1`, [brain.brain_id])).rows[0];
+        const versions = await insertVersions(c, brain.brain_id, src.versions, before.top);
+        // Health check, still inside the transaction: exactly the expected, contiguous new versions; nothing else moved.
+        const h = (await c.query(
+          `SELECT count(*)::int AS n, COALESCE(max(version),0)::int AS hi,
+                  (SELECT count(*)::int FROM attachments WHERE brain_id=$1) AS att,
+                  (SELECT status FROM brains WHERE brain_id=$1) AS status
+           FROM brain_versions WHERE brain_id=$1`, [brain.brain_id])).rows[0];
+        const added = versions.filter(Boolean).map((v) => v.version);   // storage may silently drop a row
+        const contiguous = added.every((v, i) => v === before.top + i + 1);
+        const ok = h.n === before.n + src.versions.length && h.hi === before.top + src.versions.length
+          && added.length === src.versions.length && contiguous && h.att === before.att && h.status === brain.status;
+        if (!ok) throw new HttpError(500, "import_health_check_failed", "version import failed its health check; nothing was added");
+        const touched = (await c.query(`UPDATE brains SET updated_at=now() WHERE brain_id=$1 RETURNING *`, [brain.brain_id])).rows[0];
+        await audit(c, ctx, "brain.version.import", "brain", brain.brain_id, {
+          package_sha256: sha, source_brain_id: src.source_brain_id,
+          source_versions: src.versions.map((v) => v.version), created_versions: added,
+        });
+        return { status: 201, body: {
+          brain: touched, versions, checks: report.checks,
+          note: `Added as version${added.length > 1 ? "s" : ""} ${added.join(", ")}. Attachments keep the version they were pinned to; replace an attachment's version to use a new one.`,
+        } };
+      }));
+    } catch (e) {
+      if (e instanceof HttpError) await audit(pool, ctx, "brain.version.import.rejected", "brain", target.brain_id, { reason: e.message }).catch(() => {});
       throw e;
     }
     res.status(out.status).json(out.body);
