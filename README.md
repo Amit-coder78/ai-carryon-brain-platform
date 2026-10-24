@@ -4,6 +4,16 @@ A modular AI Brain platform for AI CarryON, enabling channel-specific intelligen
 
 Architecture: open `docs/architecture/index.html` in a browser.
 
+## Phase 6: Demand estimation and initial ranking (roadmap step 9)
+
+- New Brain type `demand` (`services/engine/app/runtime/demand.py`, estimator `demand-v1`). Attach it like the heuristic Brain (`brain_type: "demand"`); it fuses with other Brains through the existing `rrf-v1` policy.
+- **Distinct people, weighted by recency.** Each requester counts once, with a weight that halves every 14 days since their *latest* request. Fewer than 3 distinct requesters scores 0: one request never decides a topic.
+- **Uncertainty is explicit.** The score is a conservative lower bound (`n_eff - 1.28*sqrt(n_eff)`, saturating so 10 effective requesters ~ 0.37). Confidence is the estimate's relative precision (about 0.26 at 3 requesters, 0.60 at 10, 0.87 at 100), so small samples never look certain. Evidence refs carry `estimator:demand-v1` and the interval. If no candidate has enough demand the Brain abstains from fusion (Phase 4 rule).
+- **History fills `channel_baseline_ratio`** (it was always the neutral 1.0 before). From this channel's selected videos with a `views_24h` observation: baseline = median, topic ratio = mean of views/baseline over past videos with the *same* topic key. Needs 3+ videos, otherwise it stays neutral. Exact match only, no fuzzy guessing.
+- Two new optional candidate features: `recent_requesters` (null = unknown, flagged `recency_unknown`, never assumed fresh) and `history_videos`. Explicit caller features still win. No migration needed.
+
+Not in this phase: spam/bot detection (comment classification is upstream; this only guarantees one person counts once), audience-size normalisation (the registry doesn't store it yet), semantic topic matching (clusters), and learned weights. The constants (half-life, minimum requesters, saturation) are fixed in `demand.py` and versioned by the estimator name.
+
 ## Phase 5: Signals, features and decision records
 
 - `POST /v1/comment-signals` (API :3000) stores demand signals: a salted hash of the commenter plus a normalized topic key, never comment text. The same person counts once however many times they comment.

@@ -4,6 +4,7 @@ Each is an async callable so the executor can cancel it on timeout. Blocking/CPU
 import math
 from typing import Protocol
 
+from . import demand
 from .schemas import Candidate, Recommendation
 
 
@@ -45,5 +46,26 @@ class HeuristicBrain:
         return out
 
 
+class DemandBrain:
+    """Audience-demand Brain (estimator `demand-v1`, see demand.py). Ignores trend freshness and channel history
+    on purpose: it answers one question, "how many distinct people asked for this, recently, and how sure are we?".
+    Its score is a conservative lower bound; candidates below the minimum number of distinct requesters score 0
+    (a single request never decides a topic). If NO candidate has enough demand, every score is 0, so under
+    Phase 4's rule the Brain abstains from fusion rather than voting noise."""
+
+    async def run(self, candidates: list[Candidate]) -> list[Recommendation]:
+        out = []
+        for c in candidates:
+            f = c.features
+            e = demand.estimate(f.unique_requesters, f.recent_requesters)
+            out.append(Recommendation(
+                candidate_id=c.candidate_id, score=e.score, confidence=e.confidence, reason_codes=e.reasons,
+                evidence_refs=[f"estimator:{demand.ESTIMATOR_VERSION}",
+                               f"feature:unique_requesters={f.unique_requesters}",
+                               f"feature:effective_requesters={e.effective_requesters}",
+                               f"estimate:low={e.low},high={e.high}"]))
+        return out
+
+
 # brain_type (from the registry) -> implementation. Unknown types fail that Brain only.
-BRAIN_TYPES: dict[str, type] = {"heuristic": HeuristicBrain}
+BRAIN_TYPES: dict[str, type] = {"heuristic": HeuristicBrain, "demand": DemandBrain}
