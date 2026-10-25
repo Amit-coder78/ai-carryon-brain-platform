@@ -4,7 +4,7 @@ Each is an async callable so the executor can cancel it on timeout. Blocking/CPU
 import math
 from typing import Protocol
 
-from . import demand
+from . import demand, semantic
 from .schemas import Candidate, Recommendation
 
 
@@ -84,5 +84,33 @@ class DemandBrain:
         return out
 
 
+class SemanticBrain:
+    """Semantic-neighbour Brain (estimator `semantic-v1`, see semantic.py). Answers one question: "did this channel's
+    most similar past videos do better or worse than its median, and is this a near-repeat of something posted
+    recently?". The neighbours are found by the caller (it owns the history and the text encoder); this Brain only
+    turns the three numbers it was sent into a score, so it needs no model and no I/O. No evidence is neutral (0.5);
+    if no candidate has evidence every score is equal and the Brain abstains from fusion."""
+
+    def __init__(self, params: dict | None = None):
+        self.params = semantic.SemanticParams.from_dict(params)   # bad settings fail this Brain only, at run time
+
+    async def run(self, candidates: list[Candidate]) -> list[Recommendation]:
+        p = self.params
+        out = []
+        for c in candidates:
+            f = c.features
+            e = semantic.estimate(f.neighbor_ratio, f.neighbor_count, f.max_similarity_recent, params=p)
+            out.append(Recommendation(
+                candidate_id=c.candidate_id, score=e.score, confidence=e.confidence, reason_codes=e.reasons,
+                evidence_refs=[f"estimator:{semantic.ESTIMATOR_VERSION}",
+                               f"param:min_neighbors={p.min_neighbors}",
+                               f"param:prior_strength={p.prior_strength:g}",
+                               f"param:repeat_similarity={p.repeat_similarity:g}",
+                               f"feature:neighbor_count={f.neighbor_count}",
+                               f"feature:neighbor_ratio={f.neighbor_ratio}",
+                               f"feature:max_similarity_recent={f.max_similarity_recent}"]))
+        return out
+
+
 # brain_type (from the registry) -> implementation. Unknown types fail that Brain only.
-BRAIN_TYPES: dict[str, type] = {"heuristic": HeuristicBrain, "demand": DemandBrain}
+BRAIN_TYPES: dict[str, type] = {"heuristic": HeuristicBrain, "demand": DemandBrain, "semantic": SemanticBrain}

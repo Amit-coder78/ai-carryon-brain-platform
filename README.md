@@ -49,7 +49,7 @@ See the matching section in the [ai-carryon README](https://github.com/Unknown18
 
 - **Brain Registry**: workspaces, channels, Brains, immutable numbered versions, attachments (attach / detach / disable / replace), audit log.
 - **Parallel runtime**: runs every attached Brain concurrently with per-Brain timeouts, fuses rankings with reciprocal-rank fusion (`rrf-v1`). One Brain failing never fails the call.
-- **Brain types**: `heuristic` (starter) and `demand` (recency-weighted distinct requesters with explicit uncertainty).
+- **Brain types**: `heuristic` (starter), `demand` (recency-weighted distinct requesters with explicit uncertainty) and `semantic` (how this channel's most similar past videos performed, plus a near-repeat penalty; neutral when there is no evidence).
 - **Signals and decisions**: privacy-preserving comment signals (salted hash + normalized topic, never comment text), a decision record for every execution, outcome observations (e.g. `views_24h`).
 - **Lifecycle**: clone, archive, soft-delete, activate.
 - **Portable packages**: checksummed export/import with dry-run, secret scan, and optional Ed25519 signatures.
@@ -174,6 +174,7 @@ It starts pgvector Postgres, migrates, seeds one workspace + channel + active he
 | 5 | Signals, features, decision records | Done |
 | 6 | Demand estimation and per-version params | Done |
 | 7 | Lifecycle, portable packages, signing | Done |
+| 8 | Semantic-neighbour Brain (shadow first) | Done |
 | Next | Auth and permissions, learned models, experiments, job queue | Planned |
 
 Details for each phase: [`docs/PHASES.md`](docs/PHASES.md).

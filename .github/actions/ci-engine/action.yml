@@ -1,13 +1,19 @@
 name: Brain engine (CI)
 description: >
   Starts the Brain engine inside the job on an ephemeral Postgres (pgvector), seeds one channel with a
-  heuristic Brain, and exports BRAIN_ENGINE_URL / BRAIN_WORKSPACE_ID / BRAIN_CHANNEL_ID_<CHANNEL>
+  heuristic Brain (plus the semantic Brain as a shadow, unless semantic_role is off), and exports BRAIN_ENGINE_URL / BRAIN_WORKSPACE_ID / BRAIN_CHANNEL_ID_<CHANNEL>
   for the steps that follow. No server to host; everything is discarded when the job ends.
 inputs:
   channel:
     description: Channel name to register (lowercase letters, digits, underscore), e.g. english
     required: false
     default: english
+  semantic_role:
+    description: >
+      How to attach the semantic-neighbour Brain next to the heuristic one: shadow (default; runs and is reported
+      but never changes the ranking), supporting (votes in rank fusion) or off.
+    required: false
+    default: shadow
 runs:
   using: composite
   steps:
@@ -22,4 +28,5 @@ runs:
       env:
         DATABASE_URL: postgresql://brain:brain@127.0.0.1:5432/brain
         CHANNEL: ${{ inputs.channel }}
+        SEMANTIC_ROLE: ${{ inputs.semantic_role }}
       run: ${{ github.action_path }}/../../../scripts/ci_engine.sh

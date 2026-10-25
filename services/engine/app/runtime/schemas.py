@@ -19,6 +19,13 @@ class CandidateFeatures(BaseModel):
     # (age in whole hours since a person's latest request, number of people), one pair per bucket. Lets each demand
     # Brain version apply its own half-life. Working data only: never written to the decision record.
     request_age_hours: list[tuple[int, int]] | None = Field(None, max_length=1000, exclude=True)
+    # Phase 8 (semantic Brain), computed by the caller from its own history and a frozen text encoder.
+    # neighbor_ratio: similarity-weighted geometric mean of (past outcome / channel baseline) over the most similar
+    # past videos of this channel (None = unknown). neighbor_count: how many stand behind it.
+    # max_similarity_recent: cosine similarity in [0, 1] to the most similar recently posted video (None = unknown).
+    neighbor_ratio: float | None = Field(None, ge=0, allow_inf_nan=False)
+    neighbor_count: int = Field(0, ge=0, le=1000)
+    max_similarity_recent: float | None = Field(None, ge=0, le=1, allow_inf_nan=False)
 
     @field_validator("request_age_hours")
     @classmethod

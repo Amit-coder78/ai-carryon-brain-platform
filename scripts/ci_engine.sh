@@ -4,6 +4,9 @@
 # publishes the connection settings for later steps. Nothing persists after the job ends.
 #
 # Env in:  DATABASE_URL (required, the ephemeral DB)   CHANNEL (default english)   PORT (default 8001)
+#          SEMANTIC_ROLE  off | shadow (default) | supporting. How the semantic-neighbour Brain is attached next to the
+#                         heuristic Brain: `shadow` runs and is reported but never changes the ranking, `supporting`
+#                         lets it vote in rank fusion, `off` seeds only the heuristic Brain.
 #          GITHUB_ENV (set by Actions; if absent the settings are printed as exports instead)
 # Env out: BRAIN_ENGINE_URL, BRAIN_WORKSPACE_ID, BRAIN_CHANNEL_ID_<CHANNEL>
 # The settings are only published AFTER the engine answers /v1/ready, so a failed start leaves the
@@ -15,6 +18,8 @@ CHANNEL="${CHANNEL:-english}"
 PORT="${PORT:-8001}"
 : "${DATABASE_URL:?DATABASE_URL is required}"
 case "$CHANNEL" in (*[!a-z0-9_]*|"") echo "CHANNEL must be lowercase letters, digits or _" >&2; exit 2;; esac
+SEMANTIC_ROLE="${SEMANTIC_ROLE:-shadow}"
+case "$SEMANTIC_ROLE" in (off|shadow|supporting) ;; (*) echo "SEMANTIC_ROLE must be off, shadow or supporting" >&2; exit 2;; esac
 
 for i in $(seq 1 30); do
   psql "$DATABASE_URL" -tAc 'select 1' >/dev/null 2>&1 && break
@@ -36,6 +41,18 @@ with w as (insert into workspaces(name) values ('ai-carryon-ci') returning works
 select (select workspace_id from w), (select channel_id from c);
 SQL
 )"
+if [ "$SEMANTIC_ROLE" != "off" ]; then
+  # Second Brain: the semantic-neighbour estimator (pure function; the pipeline sends it the neighbour features).
+  psql "$DATABASE_URL" -tA -v ON_ERROR_STOP=1 -v role="$SEMANTIC_ROLE" <<'SQL' >/dev/null
+with b as (insert into brains(workspace_id, name, brain_type, status)
+           select workspace_id, 'semantic-v1', 'semantic', 'active' from workspaces where name = 'ai-carryon-ci' returning brain_id),
+     v as (insert into brain_versions(brain_id, version, params) select brain_id, 1, '{}'::jsonb from b
+           returning brain_id, brain_version_id)
+insert into attachments(brain_id, channel_id, role, enabled, status, attached_version_id)
+select v.brain_id, c.channel_id, :'role', true, 'active', v.brain_version_id
+from v, channels c join workspaces w on w.workspace_id = c.workspace_id where w.name = 'ai-carryon-ci';
+SQL
+fi
 WORKSPACE_ID="${IDS%% *}"
 CHANNEL_ID="${IDS##* }"
 [ -n "$WORKSPACE_ID" ] && [ -n "$CHANNEL_ID" ] || { echo "seeding failed: '$IDS'" >&2; exit 1; }
